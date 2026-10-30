@@ -80,6 +80,16 @@ const variants = {
       fallbackRelativePath: "./.secrets/GoogleService-Info.prod.plist",
     }),
   },
+  // A personal fork build. Its own package id lets it install beside the official app.
+  ypaseo: {
+    name: "YPaseo",
+    packageId: "sh.paseo.ypaseo",
+    icon: "./assets/images/ypaseo/icon.png",
+    androidIcon: {
+      backgroundColor: "#5B21B6",
+      foregroundImage: "./assets/images/ypaseo/android-icon-foreground.png",
+    },
+  },
   development: {
     name: "Paseo Debug",
     packageId: "sh.paseo.debug",
@@ -103,7 +113,7 @@ export default {
     slug: "voice-mobile",
     version: nativeReleaseVersion.appVersion,
     orientation: "default",
-    icon: "./assets/images/icon.png",
+    icon: variant.icon ?? "./assets/images/icon.png",
     scheme: "paseo",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
@@ -120,7 +130,7 @@ export default {
       buildNumber: nativeReleaseVersion.iosBuildNumber,
     },
     android: {
-      adaptiveIcon: {
+      adaptiveIcon: variant.androidIcon ?? {
         backgroundColor: "#000000",
         foregroundImage: "./assets/images/android-icon-foreground.png",
       },
