@@ -2499,6 +2499,7 @@ export const fr: TranslationResources = {
     about: {
       title: "À propos",
       appVersion: "Version de l’application",
+      forkVersion: "Version de {{name}}",
       whatsNewHint: "Les nouveautés de chaque version",
       thisDevice: "Cet appareil",
       connectedHosts: "Hôtes connectés",

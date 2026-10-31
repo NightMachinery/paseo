@@ -93,6 +93,8 @@ const variants = {
   // A personal fork build. Its own package id lets it install beside the official app.
   ypaseo: {
     name: "YPaseo",
+    // The fork's own version, shown beside upstream's; bump it in ypaseo-version.json.
+    forkVersion: require("./ypaseo-version.json").version,
     packageId: "sh.paseo.ypaseo",
     icon: "./assets/images/ypaseo/icon.png",
     androidIcon: {
@@ -224,6 +226,7 @@ export default {
       watchdogBuild: isWatchdogBuild,
       diagnosticRevision: process.env.PASEO_DIAGNOSTIC_REVISION,
       diagnosticBuildTime: process.env.PASEO_DIAGNOSTIC_BUILD_TIME,
+      ...(variant.forkVersion ? { forkVersion: variant.forkVersion } : {}),
       router: {},
       eas: {
         projectId: variant.expoProject?.projectId ?? "0e7f65ce-0367-46c8-a238-2b65963d235a",

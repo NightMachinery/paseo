@@ -2571,6 +2571,7 @@ export const en = {
     about: {
       title: "About",
       appVersion: "App version",
+      forkVersion: "{{name}} version",
       whatsNewHint: "Release notes for every version",
       thisDevice: "This device",
       connectedHosts: "Connected hosts",

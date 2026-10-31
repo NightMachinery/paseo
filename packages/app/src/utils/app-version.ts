@@ -34,3 +34,23 @@ export function resolveAppVersion(): string | null {
 
   return null;
 }
+
+export interface ForkVersion {
+  name: string;
+  version: string;
+  revision: string | null;
+}
+
+/** A fork build's own version (set by its app variant), or null for upstream builds. */
+export function resolveForkVersion(): ForkVersion | null {
+  const config = Constants.expoConfig;
+  const version = toVersionOrNull(config?.extra?.forkVersion);
+  if (!version) {
+    return null;
+  }
+  return {
+    name: toVersionOrNull(config?.name) ?? "Fork",
+    version,
+    revision: toVersionOrNull(config?.extra?.diagnosticRevision),
+  };
+}

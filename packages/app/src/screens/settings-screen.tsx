@@ -92,7 +92,7 @@ import { IntegrationsSection } from "@/desktop/components/integrations-section";
 import { isElectronRuntime } from "@/desktop/host";
 import { useDesktopAppUpdater } from "@/desktop/updates/use-desktop-app-updater";
 import { formatVersionWithPrefix } from "@/desktop/updates/desktop-updates";
-import { resolveAppVersion } from "@/utils/app-version";
+import { resolveAppVersion, resolveForkVersion } from "@/utils/app-version";
 import { openChangelog } from "@/changelog";
 import { useAppDiagnosticStore } from "@/diagnostics/store";
 import { settingsStyles } from "@/styles/settings";
@@ -466,6 +466,7 @@ function AboutSection({ appVersion, appVersionText, isDesktopApp }: AboutSection
             </View>
             <Text style={styles.aboutValue}>{appVersionText}</Text>
           </View>
+          <ForkVersionRow />
           <WhatsNewRow />
           {isDesktopApp ? <DesktopAppUpdateRow /> : null}
         </View>
@@ -475,6 +476,25 @@ function AboutSection({ appVersion, appVersionText, isDesktopApp }: AboutSection
         <CommunityLinks />
       </View>
     </>
+  );
+}
+
+function ForkVersionRow() {
+  const { t } = useTranslation();
+  const fork = useMemo(resolveForkVersion, []);
+  if (!fork) {
+    return null;
+  }
+  return (
+    <View style={[settingsStyles.row, settingsStyles.rowBorder]} testID="settings-fork-version">
+      <View style={settingsStyles.rowContent}>
+        <Text style={settingsStyles.rowTitle}>
+          {t("settings.about.forkVersion", { name: fork.name })}
+        </Text>
+        {fork.revision ? <Text style={settingsStyles.rowHint}>{fork.revision}</Text> : null}
+      </View>
+      <Text style={styles.aboutValue}>{formatVersionWithPrefix(fork.version)}</Text>
+    </View>
   );
 }
 
