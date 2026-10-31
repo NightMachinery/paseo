@@ -35,14 +35,19 @@ run("npx", ["expo", "prebuild", "--platform", "android", "--no-install"], app);
 // Gradle does not track Metro's environment flags. Always regenerate the JS artifact
 // so a previous ordinary release cannot silently bypass the profiling renderer.
 rmSync(path.join(app, "android/app/build/generated/assets"), { recursive: true, force: true });
+// A fork's builds can add Gradle flags (signing, cache locations). One that names a
+// default's option replaces it, because Gradle rejects an option given twice.
+const extraGradleArgs = process.env.PASEO_GRADLE_ARGS?.split(/\s+/).filter(Boolean) ?? [];
+const optionName = (arg) => arg.split("=")[0];
+const overridden = new Set(extraGradleArgs.map(optionName));
+const defaultGradleArgs = ["--no-daemon", "--max-workers=2", "-Dorg.gradle.parallel=false"];
 run(
   "./gradlew",
   [
     "assembleRelease",
-    "--no-daemon",
-    "--max-workers=2",
-    "-Dorg.gradle.parallel=false",
+    ...defaultGradleArgs.filter((arg) => !overridden.has(optionName(arg))),
     `-PreactNativeArchitectures=${architectures}`,
+    ...extraGradleArgs,
   ],
   path.join(app, "android"),
 );
