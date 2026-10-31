@@ -67,6 +67,16 @@ function resolveSecretFile(params) {
   return undefined;
 }
 
+// A JSON file of the form { "owner": "...", "projectId": "..." }.
+function resolveExpoProject(params) {
+  const file = resolveSecretFile(params);
+  if (!file) {
+    return undefined;
+  }
+  const { owner, projectId } = JSON.parse(fs.readFileSync(path.resolve(__dirname, file), "utf8"));
+  return { owner, projectId };
+}
+
 const variants = {
   production: {
     name: "Paseo",
@@ -89,6 +99,15 @@ const variants = {
       backgroundColor: "#5B21B6",
       foregroundImage: "./assets/images/ypaseo/android-icon-foreground.png",
     },
+    // Push needs the fork owner's own Firebase app and Expo project; both stay out of git.
+    googleServicesFile: resolveSecretFile({
+      envKey: "GOOGLE_SERVICES_FILE_YPASEO",
+      fallbackRelativePath: "./.secrets/google-services.ypaseo.json",
+    }),
+    expoProject: resolveExpoProject({
+      envKey: "YPASEO_EXPO_PROJECT_FILE",
+      fallbackRelativePath: "./.secrets/expo-project.ypaseo.json",
+    }),
   },
   development: {
     name: "Paseo Debug",
@@ -207,9 +226,9 @@ export default {
       diagnosticBuildTime: process.env.PASEO_DIAGNOSTIC_BUILD_TIME,
       router: {},
       eas: {
-        projectId: "0e7f65ce-0367-46c8-a238-2b65963d235a",
+        projectId: variant.expoProject?.projectId ?? "0e7f65ce-0367-46c8-a238-2b65963d235a",
       },
     },
-    owner: "getpaseo",
+    owner: variant.expoProject?.owner ?? "getpaseo",
   },
 };
