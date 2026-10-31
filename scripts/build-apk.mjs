@@ -1,5 +1,5 @@
 import { spawnSync, execFileSync } from "node:child_process";
-import { copyFileSync, mkdirSync, rmSync } from "node:fs";
+import { copyFileSync, mkdirSync, rmSync, symlinkSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -32,6 +32,16 @@ function run(command, args, cwd) {
 }
 run("npm", ["run", "build:app-deps"], root);
 run("npx", ["expo", "prebuild", "--platform", "android", "--no-install"], app);
+// expo prebuild deletes android/, and with it Gradle's record of which tasks are up to
+// date, so every build recompiled everything. A fork's builds can keep that record
+// elsewhere: android/.gradle becomes a link to the named directory.
+const gradleStateDir = process.env.PASEO_ANDROID_GRADLE_STATE_DIR;
+if (gradleStateDir) {
+  mkdirSync(gradleStateDir, { recursive: true });
+  const link = path.join(app, "android/.gradle");
+  rmSync(link, { recursive: true, force: true });
+  symlinkSync(gradleStateDir, link);
+}
 // Gradle does not track Metro's environment flags. Always regenerate the JS artifact
 // so a previous ordinary release cannot silently bypass the profiling renderer.
 rmSync(path.join(app, "android/app/build/generated/assets"), { recursive: true, force: true });
