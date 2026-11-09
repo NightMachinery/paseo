@@ -1940,10 +1940,11 @@ function ComposerContentImpl({
         queue: queueWriter,
       });
       if (!result) return;
+      recall.forget();
       replaceUserInput(result.text);
       setSelectedAttachments(result.attachments);
     },
-    [agentId, queueWriter, replaceUserInput, setSelectedAttachments],
+    [agentId, queueWriter, recall, replaceUserInput, setSelectedAttachments],
   );
 
   const handleSendQueuedNow = useCallback(
@@ -2006,7 +2007,8 @@ function ComposerContentImpl({
         newestQueued &&
         shouldEditNewestQueuedMessage(event, {
           queuedCount: queued.length,
-          hasAttachments: selectedAttachments.length > 0,
+          // Files still uploading are part of the draft too.
+          hasAttachments: selectedAttachments.length > 0 || pendingFiles.length > 0,
         })
       ) {
         event.preventDefault();
@@ -2026,6 +2028,7 @@ function ComposerContentImpl({
       handleEditQueuedMessage,
       queueWriter,
       recall,
+      pendingFiles.length,
       replaceUserInput,
       selectedAttachments.length,
       serverId,
