@@ -96,6 +96,7 @@ import { resolveAppVersion, resolveForkVersion } from "@/utils/app-version";
 import { openChangelog } from "@/changelog";
 import { useAppDiagnosticStore } from "@/diagnostics/store";
 import { settingsStyles } from "@/styles/settings";
+import { desktopUpdateRowFor } from "@/ypaseo/desktop-update-row";
 import { THINKING_TONE_NATIVE_PCM_BASE64 } from "@/utils/thinking-tone.native-pcm";
 import { useVoiceAudioEngineOptional } from "@/contexts/voice-context";
 import {
@@ -485,7 +486,7 @@ function AboutSection({ appVersion, appVersionText, isDesktopApp }: AboutSection
           </View>
           <ForkVersionRow />
           <WhatsNewRow />
-          {isDesktopApp ? <DesktopAppUpdateRow /> : null}
+          {isDesktopApp ? <DesktopUpdateRow /> : null}
         </View>
       </SettingsSection>
       <ConnectedHostsSection clientVersion={appVersion} />
@@ -765,6 +766,8 @@ function DesktopAppUpdateRow() {
     </>
   );
 }
+
+const DesktopUpdateRow = desktopUpdateRowFor(DesktopAppUpdateRow);
 
 // ---------------------------------------------------------------------------
 // Sidebar

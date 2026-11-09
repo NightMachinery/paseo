@@ -94,3 +94,8 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   `packages/app/src/composer/recall.ts` and the composer's key handler in
   `packages/app/src/composer/index.tsx`. Upstream PR #9202 (Discussion #9201);
   drop when merged.
+- **Desktop About shows how YPaseo updates.** `packages/app/src/ypaseo/desktop-update-row.tsx`,
+  chosen in `packages/app/src/screens/settings-screen.tsx`. Replaces upstream's
+  release channel and "Check for updates" rows, which do nothing in YPaseo (its
+  updater is off) and whose channel setting is shared with the official app.
+  Permanent while this fork exists.
