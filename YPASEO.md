@@ -73,7 +73,8 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   `packages/desktop/package.json`, and the app name in
   `packages/desktop/scripts/after-pack.js` (it pruned only `Paseo.app`). Own
   app id, name and icon; shares the official app's settings folder; upstream
-  auto-update off. Permanent while this fork exists.
+  auto-update off; signed with the certificate named by `CSC_NAME` when set,
+  ad hoc otherwise. Permanent while this fork exists.
 - **Empty dictation results explain themselves and can be retried.**
   `packages/app/src/hooks/use-dictation*`. Upstream PR #8327; drop when merged.
 - **Dictation recorder grays out on silence.** `packages/app/src/dictation/pcm-level.ts`

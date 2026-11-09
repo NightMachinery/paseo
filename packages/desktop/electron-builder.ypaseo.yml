@@ -13,8 +13,10 @@ publish: null
 mac:
   artifactName: "YPaseo-${version}-${arch}.${ext}"
   icon: assets/ypaseo/icon.icns
-  # Ad-hoc signature, no notarization: the app is built and run on this Mac.
-  identity: "-"
+  # No notarization: the app is built and run on this Mac. Signed with the
+  # certificate named by CSC_NAME when set (a self-signed one is enough, and
+  # keeps macOS privacy grants such as the microphone across rebuilds);
+  # without it, ad hoc.
   hardenedRuntime: false
   notarize: false
 # Targets come from the command line: build-desktop passes --mac dir --arm64,
