@@ -108,3 +108,8 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   `schedule/service.ts` type. Daemon
   code: it takes effect only where the daemon runs this fork, not in the desktop
   build. Upstream PR #9208 (issue #6806); drop when merged.
+- **A scheduled run that finishes sends no phone push.** `packages/server/src/server/ypaseo/scheduled-push.ts`,
+  hooked into `broadcastAgentAttention` in `packages/server/src/server/websocket-server.ts`.
+  Permission and error pushes still go out. Daemon code. Replaces the bundle patch
+  `setup/patches/paseo/disable-scheduled-push-notifs.zsh` in the scripts repository.
+  Upstream Discussion #3948; drop when upstream offers a way to mute these.

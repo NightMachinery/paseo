@@ -2,6 +2,7 @@ import {
   ChunkedTransport,
   ChunkedTransportProtocolError,
 } from "@getpaseo/protocol/chunked-transport";
+import { ypaseoPushEligible } from "./ypaseo/scheduled-push.js";
 import { type WorkspaceRuntimeStore } from "./workspace-runtime-store/index.js";
 import {
   createAgentMessageDelivery,
@@ -2899,7 +2900,11 @@ export class VoiceAssistantWebSocketServer {
     const plan = computeNotificationPlan({
       allStates,
       focusTarget: { kind: "agent", id: params.agentId },
-      pushEligible: isPushEligibleAttentionReason(params.reason),
+      pushEligible: ypaseoPushEligible(
+        isPushEligibleAttentionReason(params.reason),
+        params.reason,
+        agent.labels,
+      ),
       nowMs,
     });
 
