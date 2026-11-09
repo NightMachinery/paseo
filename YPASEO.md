@@ -89,3 +89,7 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   native), called from `packages/app/src/agent-stream/view.tsx`. Works when the
   focus is not in a text field. Upstream Discussion #9198; drop when upstream
   ships prompt navigation keys.
+- **Up in an empty composer edits the newest queued message.**
+  `packages/app/src/composer/recall.ts` and the composer's key handler in
+  `packages/app/src/composer/index.tsx`. Upstream PR #9202 (Discussion #9201);
+  drop when merged.
