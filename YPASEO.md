@@ -67,6 +67,13 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   `packages/app/ypaseo-version.json`, `packages/app/src/utils/app-version.ts`.
   Separate application id, own Firebase and Expo project, own version shown in
   About. Permanent while this fork exists.
+- **YPaseo desktop variant.** `packages/desktop/electron-builder.ypaseo.yml`,
+  `packages/desktop/src/ypaseo.ts`, hooks in `packages/desktop/src/main.ts`
+  and `packages/desktop/src/features/auto-updater.ts`, the config override in
+  `packages/desktop/package.json`, and the app name in
+  `packages/desktop/scripts/after-pack.js` (it pruned only `Paseo.app`). Own
+  app id, name and icon; shares the official app's settings folder; upstream
+  auto-update off. Permanent while this fork exists.
 - **Empty dictation results explain themselves and can be retried.**
   `packages/app/src/hooks/use-dictation*`. Upstream PR #8327; drop when merged.
 - **Dictation recorder grays out on silence.** `packages/app/src/dictation/pcm-level.ts`

@@ -1,0 +1,21 @@
+# YPaseo fork: see YPASEO.md. Builds YPaseo.app for local installation, from
+# the upstream config with only these differences.
+extends: ./electron-builder.yml
+appId: sh.paseo.ypaseo.desktop
+productName: YPaseo
+executableName: YPaseo
+extraMetadata:
+  # app.name reads this; ypaseo.ts keys the shared settings and the
+  # disabled updater on it.
+  productName: YPaseo
+# No release feed: YPaseo never updates itself from upstream.
+publish: null
+mac:
+  artifactName: "YPaseo-${version}-${arch}.${ext}"
+  icon: assets/ypaseo/icon.icns
+  # Ad-hoc signature, no notarization: the app is built and run on this Mac.
+  identity: "-"
+  hardenedRuntime: false
+  notarize: false
+# Targets come from the command line: build-desktop passes --mac dir --arm64,
+# because a target list here is merged with upstream's dmg and zip.

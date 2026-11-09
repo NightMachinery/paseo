@@ -110,6 +110,7 @@ import {
   type AgentDeepLinkTarget,
 } from "@getpaseo/protocol/agent-deep-link";
 import { AgentNavigationInbox, parseAgentDeepLinkFromArgv } from "./agent-navigation.js";
+import { shareOfficialUserDataForYPaseo } from "./ypaseo.js";
 
 const DEV_SERVER_URL = process.env.EXPO_DEV_URL ?? "http://localhost:8081";
 const APP_SCHEME = "paseo";
@@ -296,6 +297,8 @@ function installBrowserWindowOpenHandler(input: {
     });
   });
 }
+
+shareOfficialUserDataForYPaseo();
 
 // In dev mode, detect git worktrees and isolate each instance so multiple
 // Electron windows can run side-by-side (separate userData = separate lock).
