@@ -73,3 +73,7 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   and the recorder UI. Upstream PR #8328; drop when merged.
 - **Recent dictations kept for retry.** `packages/app/src/dictation/recordings/`,
   Settings > Voice. Upstream PR #8329; drop when merged.
+- **No "Set up worktree scripts" callout.** `packages/app/src/ypaseo/` (`local-changes.ts`,
+  `worktree-setup-callout-source.tsx`), imported by `packages/app/src/app/_layout.tsx`.
+  Upstream Discussion #9197 (and issue #9192, which makes it recur); drop when
+  upstream offers a global dismissal.
