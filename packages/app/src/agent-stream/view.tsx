@@ -1,4 +1,5 @@
 import { ChatFind, ChatFindExpansion } from "@/agent-stream/chat-find";
+import { usePromptNavigationKeys } from "@/ypaseo/prompt-navigation-keys";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import React, {
   forwardRef,
@@ -628,6 +629,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       mountedHistoryMessageIds,
       revealLoadedMessage: revealLoadedHistory,
     });
+    usePromptNavigationKeys(chatOutline);
 
     useImperativeHandle(
       ref,

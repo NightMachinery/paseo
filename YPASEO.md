@@ -84,3 +84,8 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   `worktree-setup-callout-source.tsx`), imported by `packages/app/src/app/_layout.tsx`.
   Upstream Discussion #9197 (and issue #9192, which makes it recur); drop when
   upstream offers a global dismissal.
+- **Alt+Up / Alt+Down jump to the previous / next prompt.**
+  `packages/app/src/ypaseo/prompt-navigation*.ts` (web and desktop; a no-op on
+  native), called from `packages/app/src/agent-stream/view.tsx`. Works when the
+  focus is not in a text field. Upstream Discussion #9198; drop when upstream
+  ships prompt navigation keys.
