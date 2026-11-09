@@ -99,3 +99,8 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   release channel and "Check for updates" rows, which do nothing in YPaseo (its
   updater is off) and whose channel setting is shared with the official app.
   Permanent while this fork exists.
+- **A message that arrives during a Claude compaction waits for it.**
+  `packages/server/src/server/agent/` (`agent-manager.ts`, `agent-prompt.ts`,
+  `agent-sdk-types.ts`, `providers/claude/agent.ts`) and `session.ts`. Daemon
+  code: it takes effect only where the daemon runs this fork, not in the desktop
+  build. Upstream PR #9208 (issue #6806); drop when merged.
