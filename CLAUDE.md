@@ -201,3 +201,7 @@ The app runs on iOS, Android, web (browser), and web (Electron desktop). Code is
 ## Debugging
 
 Find the complete daemon logs and traces in the $PASEO_HOME/daemon.log
+
+## YPaseo fork
+
+This checkout may be the `ypaseo` fork branch. If `YPASEO.md` exists, read it before changing anything: it says how local changes must be written to stay mergeable with upstream.
