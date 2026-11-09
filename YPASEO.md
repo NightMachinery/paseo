@@ -76,11 +76,13 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   auto-update off; signed with the certificate named by `CSC_NAME` when set,
   ad hoc otherwise. Permanent while this fork exists.
 - **Empty dictation results explain themselves and can be retried.**
-  `packages/app/src/hooks/use-dictation*`. Upstream PR #8327; drop when merged.
+  `packages/app/src/hooks/use-dictation*`. Upstream PR #8327, which maintainers
+  carried into #8355 (issue #8339) with a reworded notice; drop when #8355 merges.
 - **Dictation recorder grays out on silence.** `packages/app/src/dictation/pcm-level.ts`
   and the recorder UI. Upstream PR #8328; drop when merged.
 - **Recent dictations kept for retry.** `packages/app/src/dictation/recordings/`,
-  Settings > Voice. Upstream PR #8329; drop when merged.
+  Settings > Voice. Upstream PR #8329, waiting on a maintainer decision about
+  retention (overlaps issue #9036); drop when merged.
 - **No "Set up worktree scripts" callout.** `packages/app/src/ypaseo/` (`local-changes.ts`,
   `worktree-setup-callout-source.tsx`), imported by `packages/app/src/app/_layout.tsx`.
   Upstream Discussion #9197 (and issue #9192, which makes it recur); drop when
