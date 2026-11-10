@@ -113,3 +113,10 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   Permission and error pushes still go out. Daemon code. Replaces the bundle patch
   `setup/patches/paseo/disable-scheduled-push-notifs.zsh` in the scripts repository.
   Upstream Discussion #3948; drop when upstream offers a way to mute these.
+- **A Luna agent continues on Luna Reserve when ordinary Codex usage runs out.**
+  `packages/server/src/server/agent/providers/codex/luna-reserve.ts`, called from
+  `providers/codex-app-server-agent.ts` (turn completion, turn start, turn parameters).
+  Only an agent on the reserve's own model moves; it goes back once the backend allows
+  ordinary usage again. Daemon code. Upstream PR #9299 (Discussion #4624, issue #4773;
+  root cause openai/codex#45132); drop when merged, or when upstream supports the reserve
+  another way.
