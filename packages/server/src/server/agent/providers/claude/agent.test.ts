@@ -729,6 +729,42 @@ describe("ClaudeAgentSession features", () => {
     return { queryFactory, queryMock, launches };
   }
 
+  function createStreamingQueryMock() {
+    const mock = createQueryMock();
+    const messages: SDKMessage[] = [];
+    let pending: ((result: IteratorResult<SDKMessage, void>) => void) | null = null;
+    let ended = false;
+    const finish = () => {
+      ended = true;
+      pending?.({ done: true, value: undefined });
+      pending = null;
+    };
+    mock.queryMock.close.mockImplementation(finish);
+    mock.queryMock.return.mockImplementation(async () => finish());
+    mock.queryMock[Symbol.asyncIterator] = () => ({
+      next: async () => {
+        const message = messages.shift();
+        if (message) return { done: false, value: message };
+        if (ended) return { done: true, value: undefined };
+        return new Promise<IteratorResult<SDKMessage, void>>((resolve) => {
+          pending = resolve;
+        });
+      },
+    });
+    return {
+      ...mock,
+      push(message: SDKMessage) {
+        if (pending) {
+          pending({ done: false, value: message });
+          pending = null;
+        } else {
+          messages.push(message);
+        }
+      },
+    };
+  }
+
+
   test("publishes a resolution when the SDK aborts a permission callback", async () => {
     const { queryFactory } = createQueryMock();
     const session = await new ClaudeAgentClient({
