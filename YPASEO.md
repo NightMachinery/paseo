@@ -120,3 +120,7 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   ordinary usage again. Daemon code. Upstream PR #9299 (Discussion #4624, issue #4773;
   root cause openai/codex#45132); drop when merged, or when upstream supports the reserve
   another way.
+- **Fable 5.2 and Mythos 5.2 in the Claude model list.** Upstream commit f9779a14a
+  (PR #9233), copied ahead of its release into `providers/claude/model-manifest.ts`,
+  `feature-definitions.ts` and their tests. Drop at the merge of the first upstream
+  release that contains it; the merge then takes upstream's identical change.
