@@ -92,6 +92,7 @@ import {
   useHorizontalScrollBoundary,
 } from "@/components/ui/horizontal-scroll-boundary";
 import { useSessionStore } from "@/stores/session-store";
+import { WorkspaceActivityMenu } from "@/ypaseo/workspace-activity-menu";
 
 const DROPDOWN_WIDTH = 220;
 const DEFAULT_INLINE_ADD_BUTTON_RESERVED_WIDTH = 36;
@@ -1432,6 +1433,9 @@ function ResolvedWorkspaceDesktopTabsRow({
           rightStyle={tabScrollBoundary.rightShadeStyle}
         />
       </View>
+      {host === "main" ? (
+        <WorkspaceActivityMenu serverId={normalizedServerId} workspaceId={normalizedWorkspaceId} />
+      ) : null}
       <WorkspacePaneToolbarActions
         panePanelKinds={panePanelKinds}
         host={host}

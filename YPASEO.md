@@ -120,3 +120,12 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   ordinary usage again. Daemon code. Upstream PR #9299 (Discussion #4624, issue #4773;
   root cause openai/codex#45132); drop when merged, or when upstream supports the reserve
   another way.
+- **The tab strip lists every agent and terminal in the workspace.**
+  `packages/app/src/ypaseo/workspace-activity*.ts(x)`, rendered by
+  `packages/app/src/screens/workspace/workspace-desktop-tabs-row.tsx` beside the pane
+  actions (main panes only). Running items first, then by last activity, including agents
+  with no tab (such as those another agent launched); the focused tab is checked, and
+  choosing an item opens or focuses its tab. Browser test
+  `packages/app/e2e/browser/ypaseo-workspace-activity-menu.spec.ts`. Upstream Discussion
+  #9062 (a plugin panel asking for the same navigation); drop when upstream ships a
+  workspace list of agents and terminals.
