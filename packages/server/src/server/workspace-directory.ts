@@ -20,6 +20,7 @@ import {
   type TerminalActivity,
 } from "@getpaseo/protocol/terminal-activity";
 import type { ProviderSubagentDescriptor } from "./agent/provider-subagents/store.js";
+import { ypaseoRootRequiresAttention } from "./ypaseo/subagent-attention.js";
 
 const FETCH_WORKSPACES_SORT_KEYS = [
   "status_priority",
@@ -386,7 +387,7 @@ export class WorkspaceDirectory {
         ? deriveAgentStateBucket({
             status: agent.status,
             pendingPermissionCount: agent.pendingPermissions?.length ?? 0,
-            requiresAttention: agent.requiresAttention,
+            requiresAttention: ypaseoRootRequiresAttention(agent, activeAgentsById),
             attentionReason: agent.attentionReason ?? null,
           })
         : "running";

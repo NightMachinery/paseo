@@ -155,3 +155,13 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   fail on this branch by design and are left unedited.
   Upstream Discussion #9623; drop when upstream ships a default scratch project for new
   workspaces.
+- **A finished subagent in its own workspace does not ask for review.**
+  `packages/server/src/server/ypaseo/subagent-attention.ts`, called from
+  `applyAgentBucketContributions` in `packages/server/src/server/workspace-directory.ts`, and its
+  app twin `packages/app/src/ypaseo/subagent-attention.ts`, called from
+  `packages/app/src/utils/workspace-agent-activity.ts` (a workspace the daemon reports as done
+  takes its newest root agent's bucket in the app, so both sides need the rule). While the
+  parent is unarchived, a child's plain finished mark leaves its workspace in Done instead of
+  Ready to review; permission and error marks still count, and the agent keeps its mark. Daemon
+  code for the half that sets the bucket. Upstream Discussion #4495 (comment); drop when upstream
+  stops cross-workspace subagents from flooding Ready to review.

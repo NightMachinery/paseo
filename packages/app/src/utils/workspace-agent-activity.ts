@@ -1,6 +1,7 @@
 import type { Agent, WorkspaceDescriptor } from "@/stores/session-store";
 import { isWorkspaceRootAgent } from "@/subagents/policies";
 import { deriveSidebarStateBucket } from "./sidebar-agent-state";
+import { ypaseoRootRequiresAttention } from "@/ypaseo/subagent-attention";
 
 export interface WorkspaceAgentActivity {
   agentId: string;
@@ -36,7 +37,7 @@ export function buildWorkspaceAgentActivityIndex(
     const status = deriveSidebarStateBucket({
       status: workspaceAgentStatus(agent),
       pendingPermissionCount: agent.pendingPermissions.length,
-      requiresAttention: agent.requiresAttention,
+      requiresAttention: ypaseoRootRequiresAttention(agent, parentAgent),
       attentionReason: agent.attentionReason,
     });
     activityByWorkspaceId.set(agent.workspaceId, {
