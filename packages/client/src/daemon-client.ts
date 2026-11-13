@@ -5143,7 +5143,7 @@ export class DaemonClient {
       cwd?: string;
       includeFiles?: boolean;
       includeDirectories?: boolean;
-      matchMode?: "fuzzy" | "suffix";
+      matchMode?: "fuzzy" | "suffix" | "exact";
     },
     requestId?: string,
   ): Promise<DirectorySuggestionsPayload> {
