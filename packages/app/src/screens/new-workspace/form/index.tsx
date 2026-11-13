@@ -19,6 +19,10 @@ import {
 import { branchIcon, folderIcon, ProjectIcon, pullRequestIcon } from "./icons";
 import { LaunchControl } from "./launch-control";
 import { AddProjectOption, IsolationOption, ProjectOption, RefOption } from "./options";
+import {
+  renderScratchWorkspaceOption,
+  scratchWorkspaceTriggerIcon,
+} from "@/ypaseo/scratch-workspace-option";
 
 type Isolation = "local" | "worktree";
 type RenderOption = NonNullable<ComboboxProps["renderOption"]>;
@@ -100,6 +104,8 @@ function useProjectPicker(
   const { supportsWorkspaceMultiplicity, onAddProject } = project;
   const renderOption = useCallback<RenderOption>(
     (row) => {
+      const scratchRow = renderScratchWorkspaceOption({ ...row, disabled: isPending });
+      if (scratchRow) return scratchRow;
       const item = projectByOptionId.get(row.option.id);
       return (
         <ProjectOption
@@ -207,7 +213,7 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
       label={t("newWorkspace.fields.project")}
       accessibilityLabel="Workspace project"
       tooltip={t("newWorkspace.tooltips.project")}
-      icon={projectIcon}
+      icon={scratchWorkspaceTriggerIcon(project.selectedOptionId) ?? projectIcon}
       value={project.triggerLabel}
       onPress={project.open}
       disabled={isPending}

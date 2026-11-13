@@ -102,6 +102,6 @@ function pick<T>(words: readonly T[], random: () => number): T {
 }
 
 /** A name like "rabbit-runs-wryly". `random` returns a number in [0, 1), like `Math.random`. */
-export function createTempProjectName(random: () => number = Math.random): string {
+export function createScratchProjectName(random: () => number = Math.random): string {
   return `${pick(NOUNS, random)}-${pick(VERBS, random)}-${pick(ADVERBS, random)}`;
 }

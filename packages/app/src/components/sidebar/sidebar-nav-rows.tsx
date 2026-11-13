@@ -23,7 +23,7 @@ import {
   buildSchedulesRoute,
   buildSessionsRoute,
 } from "@/utils/host-routes";
-import { NEW_WORKSPACE_STARTS_IN_TEMP } from "@/ypaseo/local-changes";
+import { NEW_WORKSPACE_STARTS_IN_SCRATCH } from "@/ypaseo/local-changes";
 
 interface SidebarNavRowProps {
   onBeforeNavigate?: () => void;
@@ -102,7 +102,7 @@ const SidebarNewWorkspaceRow = memo(function SidebarNewWorkspaceRow({
     router.push(
       activeWorkspaceServerId
         ? buildNewWorkspaceRoute(
-            activeWorkspace && canUseActiveWorkspaceContext && !NEW_WORKSPACE_STARTS_IN_TEMP
+            activeWorkspace && canUseActiveWorkspaceContext && !NEW_WORKSPACE_STARTS_IN_SCRATCH
               ? {
                   serverId: activeWorkspaceServerId,
                   sourceDirectory: activeWorkspace.projectRootPath,

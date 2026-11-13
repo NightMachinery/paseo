@@ -6,6 +6,6 @@
 export const SHOW_WORKTREE_SETUP_CALLOUT = false;
 
 // Cmd+N and the sidebar's "New workspace" open the screen without the active
-// project, so it starts on "Temp" (a fresh scratch repository) instead; see
-// ./temp-project.ts. A project's own "+" and "New worktree" still preselect it.
-export const NEW_WORKSPACE_STARTS_IN_TEMP = true;
+// project, so it starts on "Scratch workspace" (a fresh git repository) instead; see
+// ./scratch-workspace.ts. A project's own "+" and "New worktree" still preselect it.
+export const NEW_WORKSPACE_STARTS_IN_SCRATCH = true;

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ProjectCreateDirectoryResponse } from "@getpaseo/protocol/messages";
-import { createTempProject, TEMP_PROJECT_ROOT } from "./temp-project";
-import { createTempProjectName } from "./temp-project-names";
+import { createScratchProject, SCRATCH_PROJECT_ROOT } from "./scratch-workspace";
+import { createScratchProjectName } from "./scratch-workspace-names";
 
 type ProjectCreateDirectoryPayload = ProjectCreateDirectoryResponse["payload"];
 
@@ -29,33 +29,33 @@ function failed(errorCode: string, error: string): ProjectCreateDirectoryPayload
   return { requestId: "r", directoryPath: null, project: null, error, errorCode };
 }
 
-describe("createTempProjectName", () => {
+describe("createScratchProjectName", () => {
   it("is three lowercase words: noun, verb, adverb", () => {
     for (let index = 0; index < 200; index += 1) {
-      expect(createTempProjectName()).toMatch(/^[a-z]+-[a-z]+s-[a-z]+ly$/);
+      expect(createScratchProjectName()).toMatch(/^[a-z]+-[a-z]+s-[a-z]+ly$/);
     }
   });
 
   it("uses every end of the random range", () => {
-    expect(createTempProjectName(() => 0)).toBe("badger-bakes-boldly");
-    expect(createTempProjectName(() => 0.999999)).toBe("wombat-writes-zestily");
+    expect(createScratchProjectName(() => 0)).toBe("badger-bakes-boldly");
+    expect(createScratchProjectName(() => 0.999999)).toBe("wombat-writes-zestily");
   });
 });
 
-describe("createTempProject", () => {
-  it("asks the host for a new directory under the temp root", async () => {
+describe("createScratchProject", () => {
+  it("asks the host for a new directory under the scratch root", async () => {
     const createProjectDirectory = vi.fn(async (input: { parentPath: string; name: string }) =>
       created(input.name),
     );
 
-    const target = await createTempProject({
+    const target = await createScratchProject({
       client: { createProjectDirectory },
       serverId: "host",
       random: () => 0,
     });
 
     expect(createProjectDirectory).toHaveBeenCalledWith({
-      parentPath: TEMP_PROJECT_ROOT,
+      parentPath: SCRATCH_PROJECT_ROOT,
       name: "badger-bakes-boldly",
     });
     expect(target.sourceDirectory).toBe("/home/me/tmp/paseo-workspaces/badger-bakes-boldly");
@@ -71,7 +71,7 @@ describe("createTempProject", () => {
       .mockResolvedValueOnce(failed("directory_exists", "exists"))
       .mockImplementation(async (input: { name: string }) => created(input.name));
 
-    const target = await createTempProject({
+    const target = await createScratchProject({
       client: { createProjectDirectory },
       serverId: "host",
       random: sequence([0, 0, 0, 0.5, 0.5, 0.5, 0.99, 0.99, 0.99]),
@@ -89,7 +89,7 @@ describe("createTempProject", () => {
       .mockResolvedValue(failed("permission_denied", "Permission denied creating directory"));
 
     await expect(
-      createTempProject({ client: { createProjectDirectory }, serverId: "host" }),
+      createScratchProject({ client: { createProjectDirectory }, serverId: "host" }),
     ).rejects.toThrow("Permission denied creating directory");
     expect(createProjectDirectory).toHaveBeenCalledTimes(1);
   });
@@ -98,8 +98,8 @@ describe("createTempProject", () => {
     const createProjectDirectory = vi.fn().mockResolvedValue(failed("directory_exists", "exists"));
 
     await expect(
-      createTempProject({ client: { createProjectDirectory }, serverId: "host" }),
-    ).rejects.toThrow("No free temp project name");
+      createScratchProject({ client: { createProjectDirectory }, serverId: "host" }),
+    ).rejects.toThrow("No free scratch workspace name");
     expect(createProjectDirectory).toHaveBeenCalledTimes(8);
   });
 });

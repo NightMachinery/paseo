@@ -136,20 +136,24 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   `packages/app/src/add-project-flow/model.ts` and `add-project-flow.tsx`; carries
   the upstream PR's strings in every locale so it merges cleanly. Upstream PR #9621
   (Discussion #9620); drop when merged.
-- **Cmd+N starts in a scratch git repository ("Temp").**
-  `packages/app/src/ypaseo/temp-project*.ts(x)`, called from
+- **Cmd+N starts in a scratch workspace (a new git repository).**
+  `packages/app/src/ypaseo/scratch-workspace*.ts(x)`, called from
   `packages/app/src/screens/new-workspace-screen.tsx` (in place of the project picker hook,
-  and around the chat and terminal submit handlers); `NEW_WORKSPACE_STARTS_IN_TEMP` in
-  `packages/app/src/ypaseo/local-changes.ts`, read by `hooks/use-global-new-workspace-action.ts`
-  and `components/sidebar/sidebar-nav-rows.tsx`; daemon side
-  `packages/server/src/server/ypaseo/temp-project-directory.ts`, wrapped around
+  and around the chat and terminal submit handlers) and from
+  `packages/app/src/screens/new-workspace/form/index.tsx` (the picker row and the trigger
+  icon); `NEW_WORKSPACE_STARTS_IN_SCRATCH` in `packages/app/src/ypaseo/local-changes.ts`,
+  read by `hooks/use-global-new-workspace-action.ts` and
+  `components/sidebar/sidebar-nav-rows.tsx`; daemon side
+  `packages/server/src/server/ypaseo/scratch-project-directory.ts`, wrapped around
   `createProjectDirectory` in `session.ts`. Cmd+N and the sidebar's New workspace no longer
-  pass the active project, and the picker then selects "Temp" (listed first). The first
-  message creates `~/tmp/paseo-workspaces/<noun-verb-adverb>` on the host, runs `git init`
-  with one empty commit, registers it and continues as a Local workspace there. A project's
-  own new-workspace button and New worktree still preselect that project. The `git init`
-  is daemon code: a daemon without it makes a plain directory, and fails when the temp root
-  does not exist. Browser test `packages/app/e2e/browser/ypaseo-temp-project.spec.ts`.
+  pass the active project, and the picker then selects "Scratch workspace": the first row,
+  with a flask icon, the subtitle "New git repository in ~/tmp/paseo-workspaces" and a
+  separator before the projects; the trigger shows the same icon. The first message creates
+  `~/tmp/paseo-workspaces/<noun-verb-adverb>` on the host, runs `git init` with one empty
+  commit, registers it and continues as a Local workspace there. A project's own
+  new-workspace button and New worktree still preselect that project. The `git init` is
+  daemon code: a daemon without it makes a plain directory, and fails when the scratch root
+  does not exist. Browser test `packages/app/e2e/browser/ypaseo-scratch-workspace.spec.ts`.
   Upstream browser specs that expect Cmd+N or the sidebar button to preselect the active
   project (`new-workspace-preselect.spec.ts`, the first test of `new-workspace-entry.spec.ts`)
   fail on this branch by design and are left unedited.

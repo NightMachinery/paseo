@@ -1,7 +1,7 @@
-// YPaseo fork: see YPASEO.md. Adds "Temp" to the New workspace project picker
+// YPaseo fork: see YPASEO.md. Adds "Scratch workspace" to the New workspace project picker
 // and resolves it into a real project when the first message is sent. The
 // screen calls these in place of the upstream picker hook and around its
-// submit handlers; the logic lives in ./temp-project.ts.
+// submit handlers; the logic lives in ./scratch-workspace.ts.
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ComboboxOption } from "@/components/ui/combobox";
 import { useToast } from "@/contexts/toast-context";
@@ -13,29 +13,30 @@ import { useNewWorkspaceProjectPicker } from "@/screens/new-workspace/project-pi
 import { useSessionStore } from "@/stores/session-store";
 import { toErrorMessage } from "@/utils/error-messages";
 import {
-  buildTempProjectPickerItem,
-  createTempProject,
-  isTempProjectDefault,
-  TEMP_PROJECT_LABEL,
-  TEMP_PROJECT_OPTION_ID,
-  type TempProjectTarget,
-} from "./temp-project";
+  buildScratchWorkspacePickerItem,
+  createScratchProject,
+  isScratchWorkspaceDefault,
+  SCRATCH_WORKSPACE_DESCRIPTION,
+  SCRATCH_WORKSPACE_LABEL,
+  SCRATCH_WORKSPACE_OPTION_ID,
+  type ScratchProjectTarget,
+} from "./scratch-workspace";
 
 type PickerInput = Parameters<typeof useNewWorkspaceProjectPicker>[0];
 type PickerState = ReturnType<typeof useNewWorkspaceProjectPicker>;
 
-export interface YpaseoTempProjectController {
-  /** Temp is the selected picker option. */
+export interface YpaseoScratchWorkspaceController {
+  /** Scratch workspace is the selected picker option. */
   selected: boolean;
   /** The scratch project already created for this screen on the selected host. */
-  target: TempProjectTarget | null;
+  target: ScratchProjectTarget | null;
   /** Creates the scratch project and makes it the screen's selected project. */
-  create: () => Promise<TempProjectTarget>;
+  create: () => Promise<ScratchProjectTarget>;
 }
 
 export function useYpaseoNewWorkspaceProjectPicker(
   input: PickerInput,
-): PickerState & { ypaseoTempProject: YpaseoTempProjectController } {
+): PickerState & { ypaseoScratchWorkspace: YpaseoScratchWorkspaceController } {
   const picker = useNewWorkspaceProjectPicker(input);
   const { selectedServerId, routeProjectContextViewKey } = input;
   const supportsCreateDirectory = useHostFeature(selectedServerId, "projectCreateDirectory");
@@ -43,19 +44,26 @@ export function useYpaseoNewWorkspaceProjectPicker(
   // the upstream picker's manual selection.
   const [choice, setChoice] = useState(() => ({
     contextKey: routeProjectContextViewKey,
-    temp: isTempProjectDefault(routeProjectContextViewKey),
+    scratch: isScratchWorkspaceDefault(routeProjectContextViewKey),
   }));
   const selected =
     choice.contextKey === routeProjectContextViewKey
-      ? choice.temp
-      : isTempProjectDefault(routeProjectContextViewKey);
-  const [createdTarget, setCreatedTarget] = useState<TempProjectTarget | null>(null);
+      ? choice.scratch
+      : isScratchWorkspaceDefault(routeProjectContextViewKey);
+  const [createdTarget, setCreatedTarget] = useState<ScratchProjectTarget | null>(null);
   const target = selected && createdTarget?.serverId === selectedServerId ? createdTarget : null;
 
-  const tempItem = useMemo(() => buildTempProjectPickerItem(selectedServerId), [selectedServerId]);
+  const scratchItem = useMemo(
+    () => buildScratchWorkspacePickerItem(selectedServerId),
+    [selectedServerId],
+  );
   const projectPickerOptions = useMemo<ComboboxOption[]>(
     () => [
-      { id: TEMP_PROJECT_OPTION_ID, label: TEMP_PROJECT_LABEL },
+      {
+        id: SCRATCH_WORKSPACE_OPTION_ID,
+        label: SCRATCH_WORKSPACE_LABEL,
+        description: SCRATCH_WORKSPACE_DESCRIPTION,
+      },
       ...picker.projectPickerOptions,
     ],
     [picker.projectPickerOptions],
@@ -63,20 +71,20 @@ export function useYpaseoNewWorkspaceProjectPicker(
   const projectByOptionId = useMemo(
     () =>
       new Map<string, HostProjectListItem>([
-        [TEMP_PROJECT_OPTION_ID, tempItem],
+        [SCRATCH_WORKSPACE_OPTION_ID, scratchItem],
         ...picker.projectByOptionId,
       ]),
-    [picker.projectByOptionId, tempItem],
+    [picker.projectByOptionId, scratchItem],
   );
   const selectProject = picker.handleSelectProjectOption;
   const handleSelectProjectOption = useCallback(
     (id: string) => {
-      if (id === TEMP_PROJECT_OPTION_ID) {
-        setChoice({ contextKey: routeProjectContextViewKey, temp: true });
+      if (id === SCRATCH_WORKSPACE_OPTION_ID) {
+        setChoice({ contextKey: routeProjectContextViewKey, scratch: true });
         return;
       }
       if (!picker.projectByOptionId.has(id)) return;
-      setChoice({ contextKey: routeProjectContextViewKey, temp: false });
+      setChoice({ contextKey: routeProjectContextViewKey, scratch: false });
       selectProject(id);
     },
     [picker.projectByOptionId, routeProjectContextViewKey, selectProject],
@@ -84,13 +92,13 @@ export function useYpaseoNewWorkspaceProjectPicker(
 
   const create = useCallback(async () => {
     if (!supportsCreateDirectory) {
-      throw new Error("Update the host to start a workspace in a temp project.");
+      throw new Error("Update the host to start a scratch workspace.");
     }
     const client = getHostRuntimeStore().getClient(selectedServerId);
     if (!client?.isConnected) {
       throw new Error("Host is not connected");
     }
-    const created = await createTempProject({ client, serverId: selectedServerId });
+    const created = await createScratchProject({ client, serverId: selectedServerId });
     registerProjectDescriptor({
       serverId: selectedServerId,
       project: created.descriptor,
@@ -102,7 +110,7 @@ export function useYpaseoNewWorkspaceProjectPicker(
     return created;
   }, [selectedServerId, supportsCreateDirectory]);
 
-  const ypaseoTempProject = useMemo(
+  const ypaseoScratchWorkspace = useMemo(
     () => ({ selected, target, create }),
     [create, selected, target],
   );
@@ -113,7 +121,7 @@ export function useYpaseoNewWorkspaceProjectPicker(
       projectPickerOptions,
       projectByOptionId,
       handleSelectProjectOption,
-      ypaseoTempProject,
+      ypaseoScratchWorkspace,
     };
   }
   return {
@@ -121,10 +129,10 @@ export function useYpaseoNewWorkspaceProjectPicker(
     selectedSourceDirectory: target?.sourceDirectory ?? null,
     projectPickerOptions,
     projectByOptionId,
-    selectedProjectOptionId: TEMP_PROJECT_OPTION_ID,
-    projectTriggerLabel: target?.project.projectName ?? TEMP_PROJECT_LABEL,
+    selectedProjectOptionId: SCRATCH_WORKSPACE_OPTION_ID,
+    projectTriggerLabel: target?.project.projectName ?? SCRATCH_WORKSPACE_LABEL,
     handleSelectProjectOption,
-    ypaseoTempProject,
+    ypaseoScratchWorkspace,
   };
 }
 
@@ -137,10 +145,10 @@ export function retargetMessagePayload<P extends { cwd: string }>(
 }
 
 async function createAndRender(
-  create: () => Promise<TempProjectTarget>,
-  waiters: ((target: TempProjectTarget) => void)[],
-): Promise<TempProjectTarget> {
-  const rendered = new Promise<TempProjectTarget>((resolve) => {
+  create: () => Promise<ScratchProjectTarget>,
+  waiters: ((target: ScratchProjectTarget) => void)[],
+): Promise<ScratchProjectTarget> {
+  const rendered = new Promise<ScratchProjectTarget>((resolve) => {
     waiters.push(resolve);
   });
   try {
@@ -153,26 +161,26 @@ async function createAndRender(
 }
 
 /**
- * Wraps a New workspace submit handler. With Temp selected, it first creates the
+ * Wraps a New workspace submit handler. With Scratch workspace selected, it first creates the
  * scratch project, waits until the screen has rendered with that project
  * selected, and then runs the handler from that render, so the upstream
  * creation path sees an ordinary project. A failure shows a toast and leaves
  * the composer as it was.
  */
-export function useYpaseoTempProjectSubmit<A extends unknown[]>(
-  temp: YpaseoTempProjectController,
+export function useYpaseoScratchWorkspaceSubmit<A extends unknown[]>(
+  scratch: YpaseoScratchWorkspaceController,
   handler: (...args: A) => Promise<void>,
   retarget?: (args: A, sourceDirectory: string) => A,
 ): (...args: A) => Promise<void> {
   const toast = useToast();
-  const latest = useRef({ handler, target: temp.target });
-  const waiters = useRef<((target: TempProjectTarget) => void)[]>([]);
-  const creating = useRef<Promise<TempProjectTarget> | null>(null);
-  const { create, selected } = temp;
+  const latest = useRef({ handler, target: scratch.target });
+  const waiters = useRef<((target: ScratchProjectTarget) => void)[]>([]);
+  const creating = useRef<Promise<ScratchProjectTarget> | null>(null);
+  const { create, selected } = scratch;
 
   useLayoutEffect(() => {
-    latest.current = { handler, target: temp.target };
-    const target = temp.target;
+    latest.current = { handler, target: scratch.target };
+    const target = scratch.target;
     if (!target || waiters.current.length === 0) return;
     for (const resolve of waiters.current.splice(0)) resolve(target);
   });

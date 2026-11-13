@@ -6,12 +6,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ToastApi } from "@/components/toast-host";
 import { ToastApiProvider } from "@/contexts/toast-api-context";
 import type { HostProjectListItem } from "@/projects/host-projects";
-import { TEMP_PROJECT_OPTION_ID } from "./temp-project";
+import { SCRATCH_WORKSPACE_OPTION_ID } from "./scratch-workspace";
 import {
   retargetMessagePayload,
   useYpaseoNewWorkspaceProjectPicker,
-  useYpaseoTempProjectSubmit,
-} from "./temp-project-picker";
+  useYpaseoScratchWorkspaceSubmit,
+} from "./scratch-workspace-picker";
 
 const createProjectDirectory = vi.fn();
 const acceptProjectSnapshot = vi.fn();
@@ -77,43 +77,44 @@ afterEach(() => {
 });
 
 describe("useYpaseoNewWorkspaceProjectPicker", () => {
-  it("selects Temp, listed first, when the screen was not opened for a project", () => {
+  it("selects Scratch workspace, listed first, when the screen was not opened for a project", () => {
     const { result } = renderHook(() => useYpaseoNewWorkspaceProjectPicker(unroutedInput));
 
     expect(result.current.projectPickerOptions[0]).toEqual({
-      id: TEMP_PROJECT_OPTION_ID,
-      label: "Temp",
+      id: SCRATCH_WORKSPACE_OPTION_ID,
+      label: "Scratch workspace",
+      description: "New git repository in ~/tmp/paseo-workspaces",
     });
-    expect(result.current.selectedProjectOptionId).toBe(TEMP_PROJECT_OPTION_ID);
-    expect(result.current.projectTriggerLabel).toBe("Temp");
+    expect(result.current.selectedProjectOptionId).toBe(SCRATCH_WORKSPACE_OPTION_ID);
+    expect(result.current.projectTriggerLabel).toBe("Scratch workspace");
     expect(result.current.selectedProject).toBeNull();
     expect(result.current.selectedSourceDirectory).toBeNull();
-    expect(result.current.ypaseoTempProject.selected).toBe(true);
+    expect(result.current.ypaseoScratchWorkspace.selected).toBe(true);
   });
 
   it("keeps the routed project when the screen was opened for one", () => {
     const { result } = renderHook(() => useYpaseoNewWorkspaceProjectPicker(routedInput));
 
     expect(result.current.selectedProject).toEqual(beta);
-    expect(result.current.projectPickerOptions[0]?.id).toBe(TEMP_PROJECT_OPTION_ID);
-    expect(result.current.ypaseoTempProject.selected).toBe(false);
+    expect(result.current.projectPickerOptions[0]?.id).toBe(SCRATCH_WORKSPACE_OPTION_ID);
+    expect(result.current.ypaseoScratchWorkspace.selected).toBe(false);
   });
 
-  it("switches between a project and Temp", () => {
+  it("switches between a project and Scratch workspace", () => {
     const { result } = renderHook(() => useYpaseoNewWorkspaceProjectPicker(unroutedInput));
     const betaOption = result.current.projectPickerOptions.find((o) => o.label === "Beta")!;
 
     act(() => result.current.handleSelectProjectOption(betaOption.id));
     expect(result.current.selectedProject).toEqual(beta);
-    expect(result.current.ypaseoTempProject.selected).toBe(false);
+    expect(result.current.ypaseoScratchWorkspace.selected).toBe(false);
 
-    act(() => result.current.handleSelectProjectOption(TEMP_PROJECT_OPTION_ID));
+    act(() => result.current.handleSelectProjectOption(SCRATCH_WORKSPACE_OPTION_ID));
     expect(result.current.selectedProject).toBeNull();
-    expect(result.current.projectTriggerLabel).toBe("Temp");
+    expect(result.current.projectTriggerLabel).toBe("Scratch workspace");
   });
 });
 
-describe("useYpaseoTempProjectSubmit", () => {
+describe("useYpaseoScratchWorkspaceSubmit", () => {
   function useScreen() {
     const picker = useYpaseoNewWorkspaceProjectPicker(unroutedInput);
     const calls = useCallback(
@@ -123,8 +124,8 @@ describe("useYpaseoTempProjectSubmit", () => {
       },
       [picker.selectedSourceDirectory],
     );
-    const submit = useYpaseoTempProjectSubmit(
-      picker.ypaseoTempProject,
+    const submit = useYpaseoScratchWorkspaceSubmit(
+      picker.ypaseoScratchWorkspace,
       calls,
       retargetMessagePayload,
     );
@@ -152,7 +153,7 @@ describe("useYpaseoTempProjectSubmit", () => {
     submitted.length = 0;
   });
 
-  it("creates the temp project, then submits from a render where it is selected", async () => {
+  it("creates the scratch project, then submits from a render where it is selected", async () => {
     createProjectDirectory.mockImplementation(async ({ name }: { name: string }) => ({
       requestId: "r",
       directoryPath: `/home/me/tmp/paseo-workspaces/${name}`,
@@ -180,7 +181,7 @@ describe("useYpaseoTempProjectSubmit", () => {
       expect.objectContaining({ projectRootPath: directory }),
     );
     expect(result.current.picker.selectedProject?.iconWorkingDir).toBe(directory);
-    expect(result.current.picker.selectedProjectOptionId).toBe(TEMP_PROJECT_OPTION_ID);
+    expect(result.current.picker.selectedProjectOptionId).toBe(SCRATCH_WORKSPACE_OPTION_ID);
 
     // A retry reuses the project instead of making another.
     await submitAndWait(result.current.submit, "again", () => expect(submitted).toHaveLength(2));

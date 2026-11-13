@@ -1,4 +1,4 @@
-// YPaseo fork: see YPASEO.md. Cmd+N starts on "Temp", and the first message
+// YPaseo fork: see YPASEO.md. Cmd+N starts on "Scratch workspace", and the first message
 // creates a scratch git repository under ~/tmp/paseo-workspaces on the host.
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
@@ -19,40 +19,42 @@ import {
 // The daemon resolves ~ against its own HOME, so give this worker's daemon a
 // throwaway one instead of writing into the developer's ~/tmp.
 const daemonHome = realpathSync(mkdtempSync(path.join(tmpdir(), "ypaseo-temp-project-home-")));
-const tempRoot = path.join(daemonHome, "tmp", "paseo-workspaces");
+const scratchRoot = path.join(daemonHome, "tmp", "paseo-workspaces");
 
 test.use({ e2eDaemonEnvironment: { HOME: daemonHome } });
 
-interface TempWorkspace {
+interface ScratchWorkspace {
   id: string;
   projectId: string;
   projectRootPath: string;
 }
 
-async function findTempWorkspace(seeded: SeededWorkspace): Promise<TempWorkspace | undefined> {
+async function findScratchWorkspace(
+  seeded: SeededWorkspace,
+): Promise<ScratchWorkspace | undefined> {
   const { entries } = await seeded.client.fetchWorkspaces();
-  return entries.find((entry) => entry.projectRootPath.startsWith(`${tempRoot}/`));
+  return entries.find((entry) => entry.projectRootPath.startsWith(`${scratchRoot}/`));
 }
 
-test.describe("YPaseo temp project", () => {
+test.describe("YPaseo scratch workspace", () => {
   test.afterAll(() => {
     rmSync(daemonHome, { recursive: true, force: true });
   });
 
-  test("Cmd+N selects Temp and the first message starts in a new git repository", async ({
+  test("Cmd+N selects Scratch workspace and the first message starts in a new git repository", async ({
     page,
   }, testInfo) => {
     test.setTimeout(300_000);
-    const seed = await seedWorkspace({ repoPrefix: "ypaseo-temp-project-" });
+    const seed = await seedWorkspace({ repoPrefix: "ypaseo-scratch-workspace-" });
     try {
-      await runTempProjectScenario(page, seed, testInfo);
+      await runScratchWorkspaceScenario(page, seed, testInfo);
     } finally {
       await seed.cleanup();
     }
   });
 });
 
-async function runTempProjectScenario(
+async function runScratchWorkspaceScenario(
   page: Page,
   seed: SeededWorkspace,
   testInfo: TestInfo,
@@ -75,37 +77,42 @@ async function runTempProjectScenario(
   expect(page.url()).not.toContain("projectId=");
 
   const trigger = page.getByTestId("new-workspace-project-picker-trigger");
-  await expect(trigger).toContainText("Temp", { timeout: 30_000 });
-  expect(existsSync(tempRoot)).toBe(false);
+  await expect(trigger).toContainText("Scratch workspace", { timeout: 30_000 });
+  expect(existsSync(scratchRoot)).toBe(false);
+  await trigger.screenshot({ path: testInfo.outputPath("trigger-scratch-selected.png") });
+  await page.screenshot({ path: testInfo.outputPath("screen-scratch-selected.png") });
 
   await trigger.click();
-  const tempOption = page.getByTestId("new-workspace-project-picker-option-ypaseo-temp");
-  await expect(tempOption).toBeVisible();
-  await expect(tempOption).toContainText("~/tmp/paseo-workspaces");
+  const scratchOption = page.getByTestId("new-workspace-project-picker-option-ypaseo-scratch");
+  await expect(scratchOption).toBeVisible();
+  await expect(scratchOption).toContainText("Scratch workspace");
+  await expect(scratchOption).toContainText("New git repository in ~/tmp/paseo-workspaces");
+  // Its own group, closed off from the projects by a separator.
+  await expect(page.getByTestId("ypaseo-scratch-workspace-group")).toBeVisible();
   await expect(
     page.getByTestId(
       `new-workspace-project-picker-option-${projectEquivalenceViewKey(seed.projectKey)}`,
     ),
   ).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath("picker-temp-selected.png") });
+  await page.screenshot({ path: testInfo.outputPath("picker-scratch-selected.png") });
   await page.keyboard.press("Escape");
-  await expect(tempOption).toHaveCount(0);
+  await expect(scratchOption).toHaveCount(0);
 
-  await submitNewWorkspacePrompt(page, "Hello from a temp project");
+  await submitNewWorkspacePrompt(page, "Hello from a scratch workspace");
   await expect(page).toHaveURL(/\/workspace\//, { timeout: 60_000 });
 
-  let workspace: TempWorkspace | undefined;
+  let workspace: ScratchWorkspace | undefined;
   await expect
     .poll(
       async () => {
-        workspace = await findTempWorkspace(seed);
+        workspace = await findScratchWorkspace(seed);
         return workspace?.projectRootPath ?? null;
       },
       { timeout: 30_000 },
     )
     .toMatch(/\/[a-z]+-[a-z]+s-[a-z]+ly$/);
   const repository = workspace!.projectRootPath;
-  expect(path.dirname(repository)).toBe(tempRoot);
+  expect(path.dirname(repository)).toBe(scratchRoot);
   expect(existsSync(path.join(repository, ".git"))).toBe(true);
   expect(
     execFileSync("git", ["rev-list", "--count", "HEAD"], {
@@ -116,7 +123,7 @@ async function runTempProjectScenario(
 
   const name = path.basename(repository);
   await expect(page.getByText(name).first()).toBeVisible({ timeout: 30_000 });
-  await page.screenshot({ path: testInfo.outputPath("temp-workspace-opened.png") });
+  await page.screenshot({ path: testInfo.outputPath("scratch-workspace-opened.png") });
 
   await seed.client.removeProject(workspace!.projectId);
 }

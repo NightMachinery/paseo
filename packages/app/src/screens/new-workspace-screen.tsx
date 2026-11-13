@@ -110,8 +110,8 @@ import { buildNewWorkspaceProjectIconTargets } from "./new-workspace/project-ico
 import {
   retargetMessagePayload,
   useYpaseoNewWorkspaceProjectPicker as useNewWorkspaceProjectPicker,
-  useYpaseoTempProjectSubmit,
-} from "@/ypaseo/temp-project-picker";
+  useYpaseoScratchWorkspaceSubmit,
+} from "@/ypaseo/scratch-workspace-picker";
 import { useNewWorkspaceForm } from "./new-workspace/form";
 import { ImportSessionButton } from "./new-workspace/import-session-button";
 import { useImportSession } from "@/hooks/use-import-session";
@@ -971,7 +971,7 @@ export function NewWorkspaceScreen({
     selectedProjectOptionId,
     projectTriggerLabel,
     handleSelectProjectOption: selectProjectOption,
-    ypaseoTempProject,
+    ypaseoScratchWorkspace,
   } = useNewWorkspaceProjectPicker({
     selectedServerId,
     projects,
@@ -1445,13 +1445,13 @@ export function NewWorkspaceScreen({
     updateFormPreferences,
     withConnectedClient,
   ]);
-  const submitNewWorkspace = useYpaseoTempProjectSubmit(
-    ypaseoTempProject,
+  const submitNewWorkspace = useYpaseoScratchWorkspaceSubmit(
+    ypaseoScratchWorkspace,
     handleSubmitNewWorkspace,
     retargetMessagePayload,
   );
-  const submitTerminalLaunch = useYpaseoTempProjectSubmit(
-    ypaseoTempProject,
+  const submitTerminalLaunch = useYpaseoScratchWorkspaceSubmit(
+    ypaseoScratchWorkspace,
     handleSubmitTerminalLaunch,
   );
 

@@ -6,13 +6,13 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createProjectDirectory } from "../project-directory-service.js";
 import type { PersistedProjectRecord } from "../workspace-registry.js";
-import { withYpaseoTempProjectSetup } from "./temp-project-directory.js";
+import { withYpaseoScratchProjectSetup } from "./scratch-project-directory.js";
 
 function git(cwd: string, args: string[]): string {
   return execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
 }
 
-describe("withYpaseoTempProjectSetup", () => {
+describe("withYpaseoScratchProjectSetup", () => {
   let sandbox: string;
   let root: string;
   const registered: string[] = [];
@@ -31,10 +31,10 @@ describe("withYpaseoTempProjectSetup", () => {
     await rm(sandbox, { recursive: true, force: true });
   });
 
-  it("creates the missing temp root and initializes a git repository with one commit", async () => {
+  it("creates the missing scratch root and initializes a git repository with one commit", async () => {
     const result = await createProjectDirectory(
       { parentPath: root, name: "rabbit-runs-wryly" },
-      withYpaseoTempProjectSetup({ registerProject }, { root }),
+      withYpaseoScratchProjectSetup({ registerProject }, { root }),
     );
 
     const directory = join(root, "rabbit-runs-wryly");
@@ -45,36 +45,36 @@ describe("withYpaseoTempProjectSetup", () => {
     expect(git(directory, ["status", "--porcelain"])).toBe("");
   });
 
-  it("leaves directories outside the temp root as plain directories", async () => {
+  it("leaves directories outside the scratch root as plain directories", async () => {
     const parent = join(sandbox, "projects");
     await mkdir(parent);
 
     await createProjectDirectory(
       { parentPath: parent, name: "plain" },
-      withYpaseoTempProjectSetup({ registerProject }, { root }),
+      withYpaseoScratchProjectSetup({ registerProject }, { root }),
     );
 
     expect(existsSync(join(parent, "plain"))).toBe(true);
     expect(existsSync(join(parent, "plain", ".git"))).toBe(false);
   });
 
-  it("does not create a missing parent outside the temp root", async () => {
+  it("does not create a missing parent outside the scratch root", async () => {
     await expect(
       createProjectDirectory(
         { parentPath: join(sandbox, "missing"), name: "plain" },
-        withYpaseoTempProjectSetup({ registerProject }, { root }),
+        withYpaseoScratchProjectSetup({ registerProject }, { root }),
       ),
     ).rejects.toMatchObject({ code: "parent_directory_not_found" });
     expect(existsSync(join(sandbox, "missing"))).toBe(false);
   });
 
-  it("does not initialize a repository nested deeper than the temp root", async () => {
+  it("does not initialize a repository nested deeper than the scratch root", async () => {
     const nested = join(root, "group");
     await mkdir(nested, { recursive: true });
 
     await createProjectDirectory(
       { parentPath: nested, name: "inner" },
-      withYpaseoTempProjectSetup({ registerProject }, { root }),
+      withYpaseoScratchProjectSetup({ registerProject }, { root }),
     );
 
     expect(existsSync(join(nested, "inner", ".git"))).toBe(false);
@@ -86,7 +86,7 @@ describe("withYpaseoTempProjectSetup", () => {
     await expect(
       createProjectDirectory(
         { parentPath: root, name: "otter-naps-softly" },
-        withYpaseoTempProjectSetup({ registerProject }, { root, runGit }),
+        withYpaseoScratchProjectSetup({ registerProject }, { root, runGit }),
       ),
     ).rejects.toMatchObject({ code: "filesystem_error" });
     expect(existsSync(join(root, "otter-naps-softly"))).toBe(false);
@@ -99,7 +99,7 @@ describe("withYpaseoTempProjectSetup", () => {
     await expect(
       createProjectDirectory(
         { parentPath: root, name: "taken" },
-        withYpaseoTempProjectSetup({ registerProject }, { root }),
+        withYpaseoScratchProjectSetup({ registerProject }, { root }),
       ),
     ).rejects.toMatchObject({ code: "directory_exists" });
   });

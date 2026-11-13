@@ -1,41 +1,42 @@
-// YPaseo fork: see YPASEO.md. "Temp" in the New workspace project picker: the
+// YPaseo fork: see YPASEO.md. "Scratch workspace" in the New workspace project picker: the
 // first message creates a scratch git repository under ~/tmp/paseo-workspaces
 // on the selected host, registers it as a project, and the workspace starts
-// there. The daemon side is packages/server/src/server/ypaseo/temp-project-directory.ts.
+// there. The daemon side is packages/server/src/server/ypaseo/scratch-project-directory.ts.
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import type { WorkspaceProjectDescriptorPayload } from "@getpaseo/protocol/messages";
 import type { HostProjectListItem } from "@/projects/host-projects";
 import { createProjectViewKey } from "@/projects/workspace-structure";
-import { createTempProjectName } from "./temp-project-names";
+import { createScratchProjectName } from "./scratch-workspace-names";
 
 /** Sent unexpanded: the daemon resolves `~` against its own home. */
-export const TEMP_PROJECT_ROOT = "~/tmp/paseo-workspaces";
-export const TEMP_PROJECT_LABEL = "Temp";
-export const TEMP_PROJECT_OPTION_ID = "ypaseo:temp";
-export const TEMP_PROJECT_VIEW_KEY = "ypaseo-temp";
+export const SCRATCH_PROJECT_ROOT = "~/tmp/paseo-workspaces";
+export const SCRATCH_WORKSPACE_LABEL = "Scratch workspace";
+export const SCRATCH_WORKSPACE_DESCRIPTION = `New git repository in ${SCRATCH_PROJECT_ROOT}`;
+export const SCRATCH_WORKSPACE_OPTION_ID = "ypaseo:scratch";
+export const SCRATCH_WORKSPACE_VIEW_KEY = "ypaseo-scratch";
 
 const MAX_NAME_ATTEMPTS = 8;
 
-export interface TempProjectTarget {
+export interface ScratchProjectTarget {
   serverId: string;
   project: HostProjectListItem;
   sourceDirectory: string;
   descriptor: WorkspaceProjectDescriptorPayload;
 }
 
-/** The row the picker shows for Temp. It is never a selectable project itself. */
-export function buildTempProjectPickerItem(serverId: string): HostProjectListItem {
+/** The row the picker shows for the scratch workspace. It is never a selectable project itself. */
+export function buildScratchWorkspacePickerItem(serverId: string): HostProjectListItem {
   return {
-    viewKey: TEMP_PROJECT_VIEW_KEY,
+    viewKey: SCRATCH_WORKSPACE_VIEW_KEY,
     projectKey: null,
-    projectName: TEMP_PROJECT_LABEL,
+    projectName: SCRATCH_WORKSPACE_LABEL,
     projectKind: "unknown",
-    iconWorkingDir: TEMP_PROJECT_ROOT,
+    iconWorkingDir: SCRATCH_PROJECT_ROOT,
     hosts: [
       {
         serverId,
         projectId: "",
-        iconWorkingDir: TEMP_PROJECT_ROOT,
+        iconWorkingDir: SCRATCH_PROJECT_ROOT,
         worktreeSupport: "unknown",
       },
     ],
@@ -43,12 +44,12 @@ export function buildTempProjectPickerItem(serverId: string): HostProjectListIte
   };
 }
 
-/** The New workspace screen picks Temp unless it was opened for a specific project. */
-export function isTempProjectDefault(routeProjectContextViewKey: string | null): boolean {
+/** The New workspace screen picks the scratch workspace unless it was opened for a specific project. */
+export function isScratchWorkspaceDefault(routeProjectContextViewKey: string | null): boolean {
   return routeProjectContextViewKey === null;
 }
 
-function hostProjectFromTempDescriptor(
+function hostProjectFromScratchDescriptor(
   serverId: string,
   descriptor: WorkspaceProjectDescriptorPayload,
 ): HostProjectListItem {
@@ -76,28 +77,28 @@ function hostProjectFromTempDescriptor(
  * Creates `~/tmp/paseo-workspaces/<name>` on the host and registers it as a
  * project, picking another name while the directory already exists.
  */
-export async function createTempProject(input: {
+export async function createScratchProject(input: {
   client: Pick<DaemonClient, "createProjectDirectory">;
   serverId: string;
   random?: () => number;
-}): Promise<TempProjectTarget> {
+}): Promise<ScratchProjectTarget> {
   for (let attempt = 0; attempt < MAX_NAME_ATTEMPTS; attempt += 1) {
-    const name = createTempProjectName(input.random);
+    const name = createScratchProjectName(input.random);
     const payload = await input.client.createProjectDirectory({
-      parentPath: TEMP_PROJECT_ROOT,
+      parentPath: SCRATCH_PROJECT_ROOT,
       name,
     });
     if (payload.project) {
       return {
         serverId: input.serverId,
-        project: hostProjectFromTempDescriptor(input.serverId, payload.project),
+        project: hostProjectFromScratchDescriptor(input.serverId, payload.project),
         sourceDirectory: payload.project.projectRootPath,
         descriptor: payload.project,
       };
     }
     if (payload.errorCode !== "directory_exists") {
-      throw new Error(payload.error ?? "Unable to create a temp project");
+      throw new Error(payload.error ?? "Unable to create a scratch workspace");
     }
   }
-  throw new Error(`No free temp project name found in ${TEMP_PROJECT_ROOT}`);
+  throw new Error(`No free scratch workspace name found in ${SCRATCH_PROJECT_ROOT}`);
 }
