@@ -129,3 +129,10 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   `packages/app/e2e/browser/ypaseo-workspace-activity-menu.spec.ts`. Upstream Discussion
   #9062 (a plugin panel asking for the same navigation); drop when upstream ships a
   workspace list of agents and terminals.
+- **A typed file path offers its directory in Add project's directory search.**
+  `packages/app/src/add-project-flow/typed-file-path.ts`, `project-picker-options.ts`
+  and `add-project-flow.tsx`. Upstream PR #9619 (Discussion #9601); drop when merged.
+- **Add project can open on directory search.** Settings > General > Add project,
+  `packages/app/src/add-project-flow/model.ts` and `add-project-flow.tsx`; carries
+  the upstream PR's strings in every locale so it merges cleanly. Upstream PR #9621
+  (Discussion #9620); drop when merged.
