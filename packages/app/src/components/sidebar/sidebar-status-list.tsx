@@ -80,6 +80,7 @@ import type { ToggleSidebarWorkspacePin } from "@/hooks/use-sidebar-workspace-pi
 import { DraggableList, type DraggableRenderItemInfo } from "@/components/draggable-list";
 import type { DraggableListDragHandleProps } from "@/components/draggable-list.types";
 import { useLongPressDragInteraction } from "@/components/sidebar/use-long-press-drag-interaction";
+import { StatusGroupHeaderActions } from "@/ypaseo/status-group-actions";
 
 // Themed icon wrappers
 const mutedGroupIconProps = densityIconProps("sm", (theme) => ({
@@ -494,6 +495,7 @@ function StatusGroupHeader({
             </Text>
           </View>
         </View>
+        <StatusGroupHeaderActions group={group} hovered={isHovered} />
       </Pressable>
     </View>
   );

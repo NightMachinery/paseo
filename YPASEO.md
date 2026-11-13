@@ -165,3 +165,11 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   Ready to review; permission and error marks still count, and the agent keeps its mark. Daemon
   code for the half that sets the bucket. Upstream Discussion #4495 (comment); drop when upstream
   stops cross-workspace subagents from flooding Ready to review.
+- **"Mark all as read" on the sidebar's Ready to review group.**
+  `packages/app/src/ypaseo/mark-all-read.ts` and `status-group-actions.tsx`, rendered by
+  `StatusGroupHeader` in `packages/app/src/components/sidebar/sidebar-status-list.tsx`. A
+  hover-revealed button (always shown on touch layouts) that sends one `workspace.clear_attention`
+  request per host with all of the group's workspaces, the request a row's own Mark as read uses.
+  Browser test `packages/app/e2e/browser/ypaseo-ready-to-review.spec.ts`, which also covers the
+  finished-subagent entry above. Upstream Discussion #4495 (comment); drop when upstream ships
+  a bulk mark-as-read.
