@@ -2490,6 +2490,14 @@ export const es: TranslationResources = {
           queue: "Cola",
         },
       },
+      addProject: {
+        title: "Agregar proyecto",
+        startOnDirectorySearch: {
+          label: "Abrir en la búsqueda de directorio",
+          description:
+            "Agregar proyecto empieza en la búsqueda de directorio. Atrás vuelve a las demás opciones.",
+        },
+      },
       sendShortcut: {
         label: "Atajo de envío",
         options: {
