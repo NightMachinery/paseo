@@ -153,5 +153,5 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   Upstream browser specs that expect Cmd+N or the sidebar button to preselect the active
   project (`new-workspace-preselect.spec.ts`, the first test of `new-workspace-entry.spec.ts`)
   fail on this branch by design and are left unedited.
-  Upstream Discussion: drafted, not posted; drop when upstream ships a default scratch
-  project for new workspaces.
+  Upstream Discussion #9623; drop when upstream ships a default scratch project for new
+  workspaces.
