@@ -107,7 +107,11 @@ import {
   resolveNewWorkspaceInitialServerId,
 } from "./new-workspace-initial-context";
 import { buildNewWorkspaceProjectIconTargets } from "./new-workspace/project-icon-targets";
-import { useNewWorkspaceProjectPicker } from "./new-workspace/project-picker";
+import {
+  retargetMessagePayload,
+  useYpaseoNewWorkspaceProjectPicker as useNewWorkspaceProjectPicker,
+  useYpaseoTempProjectSubmit,
+} from "@/ypaseo/temp-project-picker";
 import { useNewWorkspaceForm } from "./new-workspace/form";
 import { ImportSessionButton } from "./new-workspace/import-session-button";
 import { useImportSession } from "@/hooks/use-import-session";
@@ -967,6 +971,7 @@ export function NewWorkspaceScreen({
     selectedProjectOptionId,
     projectTriggerLabel,
     handleSelectProjectOption: selectProjectOption,
+    ypaseoTempProject,
   } = useNewWorkspaceProjectPicker({
     selectedServerId,
     projects,
@@ -1440,6 +1445,15 @@ export function NewWorkspaceScreen({
     updateFormPreferences,
     withConnectedClient,
   ]);
+  const submitNewWorkspace = useYpaseoTempProjectSubmit(
+    ypaseoTempProject,
+    handleSubmitNewWorkspace,
+    retargetMessagePayload,
+  );
+  const submitTerminalLaunch = useYpaseoTempProjectSubmit(
+    ypaseoTempProject,
+    handleSubmitTerminalLaunch,
+  );
 
   const agentControlsWithDisabled = useMemo(
     () =>
@@ -1534,7 +1548,7 @@ export function NewWorkspaceScreen({
       agentId={draftKey}
       serverId={selectedServerId}
       isPaneFocused={true}
-      onSubmitMessage={handleSubmitTerminalLaunch}
+      onSubmitMessage={submitTerminalLaunch}
       allowEmptySubmit={true}
       submitButtonAccessibilityLabel={t("newWorkspace.launch.submit")}
       submitButtonTestID="new-workspace-launch-submit"
@@ -1558,7 +1572,7 @@ export function NewWorkspaceScreen({
       agentId={draftKey}
       serverId={selectedServerId}
       isPaneFocused={true}
-      onSubmitMessage={handleSubmitNewWorkspace}
+      onSubmitMessage={submitNewWorkspace}
       allowEmptySubmit={true}
       submitButtonAccessibilityLabel={t("newWorkspace.create")}
       submitButtonTestID="workspace-create-submit"

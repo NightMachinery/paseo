@@ -276,6 +276,7 @@ import {
   ProjectDirectoryRequestError,
 } from "./project-directory-service.js";
 import { runGitCommand } from "../utils/run-git-command.js";
+import { withYpaseoTempProjectSetup } from "./ypaseo/temp-project-directory.js";
 import { CreateAgentLifecycleDispatch } from "./agent/create-agent-lifecycle-dispatch.js";
 import { resolveWorktreeSourceCwd } from "./workspace-source.js";
 
@@ -7138,10 +7139,10 @@ export class Session {
     try {
       const result = await createProjectDirectory(
         { parentPath: request.parentPath, name: request.name },
-        {
+        withYpaseoTempProjectSetup({
           registerProject: (directoryPath) =>
             this.workspaceProvisioning.findOrCreateProjectForDirectory(directoryPath),
-        },
+        }),
       );
       this.emit({
         type: "project.create_directory.response",

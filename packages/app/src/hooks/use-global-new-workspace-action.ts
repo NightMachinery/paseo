@@ -8,6 +8,7 @@ import { useHosts } from "@/runtime/host-runtime";
 import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { useWorkspace } from "@/stores/session-store-hooks";
 import { buildNewWorkspaceRoute } from "@/utils/host-routes";
+import { NEW_WORKSPACE_STARTS_IN_TEMP } from "@/ypaseo/local-changes";
 
 const WORKSPACE_NEW_ACTIONS: readonly KeyboardActionId[] = ["workspace.new"];
 
@@ -30,7 +31,7 @@ export function useGlobalNewWorkspaceAction() {
     router.navigate(
       (serverId
         ? buildNewWorkspaceRoute(
-            activeWorkspace && canUseActiveWorkspaceContext
+            activeWorkspace && canUseActiveWorkspaceContext && !NEW_WORKSPACE_STARTS_IN_TEMP
               ? {
                   serverId,
                   sourceDirectory: activeWorkspace.projectRootPath,
