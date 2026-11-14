@@ -198,5 +198,5 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   `packages/app/src/screens/workspace/workspace-header-menu.tsx`, wired in `workspace-screen.tsx`;
   carries the upstream PR's `workspace.header.actions.pin`/`unpin` strings in every locale so it
   merges cleanly. Unit test `workspace-header-menu.test.tsx`, browser test
-  `packages/app/e2e/browser/workspace-header-pin.spec.ts`. Upstream PR pending (branch
+  `packages/app/e2e/browser/workspace-header-pin.spec.ts`. Upstream PR #9697 (branch
   `workspace-header-pin`; related Discussion #8644); drop when upstream merges it.
