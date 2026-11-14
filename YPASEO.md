@@ -192,3 +192,11 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   PRs #9682 (stacked on #9616) and #9683, both linked from issue #9646. On the next upstream merge, a conflict in
   `fake-acp-agent.mjs` is resolved by taking upstream's file and reapplying the
   `models`/`modelLevels` scenario. Drop each part when upstream merges it.
+- **Pin and unpin the open workspace from the workspace header's ⋯ menu.**
+  `packages/app/src/hooks/use-workspace-pin-toggle.ts` (shared with
+  `hooks/use-global-workspace-pin-action.ts`, which now calls it), the item in
+  `packages/app/src/screens/workspace/workspace-header-menu.tsx`, wired in `workspace-screen.tsx`;
+  carries the upstream PR's `workspace.header.actions.pin`/`unpin` strings in every locale so it
+  merges cleanly. Unit test `workspace-header-menu.test.tsx`, browser test
+  `packages/app/e2e/browser/workspace-header-pin.spec.ts`. Upstream PR pending (branch
+  `workspace-header-pin`; related Discussion #8644); drop when upstream merges it.
