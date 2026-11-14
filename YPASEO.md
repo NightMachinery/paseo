@@ -179,3 +179,16 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   Browser test `packages/app/e2e/browser/ypaseo-ready-to-review.spec.ts`, which also covers the
   finished-subagent entry above. Upstream Discussion #4495 (comment); drop when upstream ships
   a bulk mark-as-read.
+- **ACP thinking options per model, and a recorded model that follows thinking changes.**
+  `packages/server/src/server/agent/providers/acp-agent.ts` (with `acp-options.ts`, tests in
+  `acp-agent.test.ts`, and `test-utils/fake-acp-agent.mjs`, which this branch takes from
+  upstream `main` before its release). Three upstream commits carried as cherry-picks: PR #9616
+  by doskoi (each model's thinking options come from its own `_meta.reasoningEfforts`, issue
+  #9646); an opt-in `probeModelThinking` provider option that switches the catalog probe
+  session through each model to read its `thought_level` choices, for agents such as `agy acp`
+  that publish no per-model metadata (set `"options": {"probeModelThinking": true}` on the
+  provider); and a fix that records `<model>-<level>` after a thinking change, a model change or
+  a `config_option_update` when the agent lists that id. Daemon code. The last two are drafted
+  for issue #9646 and not yet posted. On the next upstream merge, a conflict in
+  `fake-acp-agent.mjs` is resolved by taking upstream's file and reapplying the
+  `models`/`modelLevels` scenario. Drop each part when upstream merges it.
