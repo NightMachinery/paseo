@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import {
   AgentSideConnection,
@@ -25,6 +25,7 @@ import {
 import {
   ACPAgentClient,
   ACPAgentSession,
+  DEFAULT_ACP_CAPABILITIES,
   type SpawnedACPProcess,
   type SessionStateResponse,
   buildACPClientCapabilities,
@@ -1856,6 +1857,88 @@ describe("ACPAgentSession Zed parity", () => {
         value: "Probe Agent",
       }),
     ]);
+  });
+});
+
+describe("ACPAgentSession recorded model with combined model ids", () => {
+  // The agent lists "<model>-<level>" ids in its model state, while its config options split
+  // the same choice into a model select and a thought_level select. Writing either one moves
+  // what the agent runs.
+  const fakeAgentPath = fileURLToPath(new URL("./test-utils/fake-acp-agent.mjs", import.meta.url));
+  const sessions: ACPAgentSession[] = [];
+  const modelLevels = {
+    base: ["low", "medium", "high"],
+    large: ["low", "medium", "high", "xhigh"],
+  };
+
+  afterEach(async () => {
+    await Promise.all(sessions.splice(0).map((session) => session.close()));
+  });
+
+  function eventTypes(events: AgentStreamEvent[]): string[] {
+    return events.map((event) => event.type);
+  }
+
+  async function openSession(): Promise<{ session: ACPAgentSession; events: AgentStreamEvent[] }> {
+    const scenario = {
+      models: {
+        currentModelId: "base-medium",
+        availableModels: Object.entries(modelLevels).flatMap(([model, levels]) =>
+          levels.map((level) => ({ modelId: `${model}-${level}`, name: `${model} ${level}` })),
+        ),
+      },
+      options: [
+        { ...selectConfigOption("model", Object.keys(modelLevels), "base"), id: "model" },
+        { ...selectConfigOption("thought_level", modelLevels.base, "medium"), id: "thought" },
+      ],
+      modelLevels,
+    };
+    await mkdir("/tmp/paseo-acp-test", { recursive: true });
+    const session = new ACPAgentSession(
+      { provider: "acp", cwd: "/tmp/paseo-acp-test" },
+      {
+        provider: "acp",
+        logger: createTestLogger(),
+        defaultCommand: [process.execPath, fakeAgentPath, JSON.stringify(scenario)],
+        defaultModes: [],
+        capabilities: DEFAULT_ACP_CAPABILITIES,
+      },
+    );
+    sessions.push(session);
+    const events: AgentStreamEvent[] = [];
+    session.subscribe((event) => events.push(event));
+    await session.initializeNewSession();
+    return { session, events };
+  }
+
+  test("a thinking change records the combined model id the agent now runs", async () => {
+    const { session, events } = await openSession();
+    await session.setModel("large-xhigh");
+
+    await session.setThinkingOption("low");
+
+    await expect(session.getRuntimeInfo()).resolves.toMatchObject({
+      model: "large-low",
+      thinkingOptionId: "low",
+    });
+    expect(events).toContainEqual({
+      type: "model_changed",
+      provider: "acp",
+      runtimeInfo: expect.objectContaining({ model: "large-low", thinkingOptionId: "low" }),
+    });
+  });
+
+  test("the agent's config_option_update after a model switch keeps the combined model id", async () => {
+    const { session, events } = await openSession();
+
+    await session.setModel("large-xhigh");
+    // The agent announces the switch with a config_option_update after answering it.
+    await vi.waitFor(() => expect(eventTypes(events)).toContain("thinking_option_changed"));
+
+    await expect(session.getRuntimeInfo()).resolves.toMatchObject({
+      model: "large-xhigh",
+      thinkingOptionId: "xhigh",
+    });
   });
 });
 
