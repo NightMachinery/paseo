@@ -188,7 +188,7 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   session through each model to read its `thought_level` choices, for agents such as `agy acp`
   that publish no per-model metadata (set `"options": {"probeModelThinking": true}` on the
   provider); and a fix that records `<model>-<level>` after a thinking change, a model change or
-  a `config_option_update` when the agent lists that id. Daemon code. The last two are drafted
-  for issue #9646 and not yet posted. On the next upstream merge, a conflict in
+  a `config_option_update` when the agent lists that id. Daemon code. The last two are upstream
+  PRs #9682 (stacked on #9616) and #9683, both linked from issue #9646. On the next upstream merge, a conflict in
   `fake-acp-agent.mjs` is resolved by taking upstream's file and reapplying the
   `models`/`modelLevels` scenario. Drop each part when upstream merges it.
