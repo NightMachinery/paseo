@@ -24,7 +24,10 @@ export type AgentRunController = Pick<
   reloadAgentSession(agentId: string): Promise<unknown>;
 };
 
+export class AgentTurnBusyError extends Error {}
+
 export interface StartAgentRunOptions {
+  idleOnly?: boolean;
   /** Called after selecting the run, before consuming its events. */
   onDispatch?: (disposition: PromptDispatchDisposition) => void;
   replaceRunning?: boolean;
@@ -175,7 +178,14 @@ async function dispatchAgentRun(
   waited: () => boolean,
 ): Promise<{ disposition: PromptDispatchDisposition }> {
   const snapshot = agentManager.getAgent(agentId);
-  let steered = await steerOrReplaceActiveRun(agentManager, agentId, prompt, options);
+  // An idle-only prompt (an agent message held until the turn ends, #9757) never steers, so it
+  // never waits out a compaction here: the delivery queue retries it once the turn has ended.
+  let steered = options.idleOnly
+    ? null
+    : await steerOrReplaceActiveRun(agentManager, agentId, prompt, options);
+  if (options.idleOnly && agentManager.hasInFlightRun(agentId)) {
+    throw new AgentTurnBusyError(`Agent ${agentId} is running`);
+  }
   // Prompts that waited out the same turn all find it ended at once. The first to get here
   // starts a turn; the rest join it, since replacing it would cancel the first prompt.
   if (!steered && waited() && agentManager.hasInFlightRun(agentId)) {
@@ -254,6 +264,7 @@ export async function unarchiveAgentState(
 }
 
 export interface SendPromptToAgentParams {
+  idleOnly?: boolean;
   /** Awaited after the agent is loaded and its mode is set, before the prompt is handed to a run. */
   beforeDispatch?: () => Promise<void>;
   onDispatch?: StartAgentRunOptions["onDispatch"];
@@ -401,13 +412,17 @@ export async function sendPreparedPromptToAgent(
     throw error;
   }
 
+  if (params.idleOnly && params.agentManager.hasInFlightRun(params.agentId)) {
+    throw new AgentTurnBusyError(`Agent ${params.agentId} is running`);
+  }
   if (params.sessionMode) {
     await params.agentManager.setAgentMode(params.agentId, params.sessionMode);
   }
 
   await params.beforeDispatch?.();
   return await startAgentRun(params.agentManager, params.agentId, params.prompt, params.logger, {
-    replaceRunning: true,
+    replaceRunning: !params.idleOnly,
+    idleOnly: params.idleOnly,
     onDispatch: params.onDispatch,
     activeTurnBehavior: params.activeTurnBehavior,
     clearPendingPermissions: params.clearPendingPermissions,
