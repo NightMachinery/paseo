@@ -9,6 +9,11 @@ import {
   type AgentMessageDelivery,
 } from "./agent/agent-messages/index.js";
 import {
+  createDaemonAgentMessageQueue,
+  type AgentMessageQueue,
+} from "./agent/agent-message-queue.js";
+import {
+  dispositionStartsTurn,
   sendPreparedPromptToAgent,
   waitForAgentRunStartWithTimeout,
 } from "./agent/agent-prompt.js";
@@ -577,6 +582,7 @@ export class VoiceAssistantWebSocketServer {
   private readonly agentStorage: AgentStorage;
   private readonly messageReceipts: MessageReceipts;
   readonly agentMessages: AgentMessageDelivery;
+  readonly messageQueue: AgentMessageQueue;
   private readonly creationService: CreationService;
   private readonly projectRegistry: ProjectRegistry;
   private readonly workspaceRegistry: WorkspaceRegistry;
@@ -759,7 +765,7 @@ export class VoiceAssistantWebSocketServer {
           runOptions: { clientMessageId: batch.messageIds[0] },
           logger: this.logger,
         });
-        if (disposition === "turn_started")
+        if (dispositionStartsTurn(disposition))
           await waitForAgentRunStartWithTimeout(agentManager, batch.recipientId);
         return disposition;
       },
@@ -768,6 +774,12 @@ export class VoiceAssistantWebSocketServer {
           { err, agentId: batch.recipientId, messageIds: batch.messageIds },
           "Agent message batch dispatch failed",
         ),
+    });
+    this.messageQueue = createDaemonAgentMessageQueue({
+      agentManager,
+      agentStorage,
+      paseoHome,
+      logger: this.logger,
     });
     this.messageReceipts = new MessageReceipts(join(paseoHome, "agent-requests"));
     this.creationService = new CreationService(
@@ -1177,6 +1189,7 @@ export class VoiceAssistantWebSocketServer {
 
   public async close(): Promise<void> {
     this.prepareForShutdown();
+    await this.messageQueue.close();
     await this.agentMessages.close();
     await this.connectedHosts.close();
     this.unsubscribeSpeechReadiness?.();
@@ -1696,6 +1709,7 @@ export class VoiceAssistantWebSocketServer {
       agentStorage: this.agentStorage,
       messageReceipts: this.messageReceipts,
       agentMessages: this.agentMessages,
+      messageQueue: this.messageQueue,
       creationService: this.creationService,
       projectRegistry: this.projectRegistry,
       workspaceRegistry: this.workspaceRegistry,
@@ -2226,6 +2240,8 @@ export class VoiceAssistantWebSocketServer {
         canonicalSubmittedPrompts: true,
         agentMessageProvenance: true,
         agentMessageBatching: true,
+        // COMPAT(agentMessageQueue): added after v0.16.0, remove gate after 2027-05-17.
+        agentMessageQueue: true,
         // COMPAT(stableProjectIdentity): added in v0.1.109, remove gate after 2027-01-15.
         stableProjectIdentity: true,
         // COMPAT(workspaceScriptManagement): added in v0.1.105, remove gate after 2027-01-10.

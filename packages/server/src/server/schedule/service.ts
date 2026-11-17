@@ -234,6 +234,7 @@ type ScheduleAgentManager = Pick<
   | "steerOrReplaceActiveTurn"
   | "streamAgent"
   | "trackWaitingPrompt"
+  | "streamAgentIfIdle"
 > &
   Pick<
     AgentManager,
