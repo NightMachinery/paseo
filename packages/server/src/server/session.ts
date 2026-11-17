@@ -9154,10 +9154,11 @@ export class Session {
         agentId,
         AbortSignal.any([abortController.signal, sourceSignal]),
       );
-      await this.agentManager.waitForWaitingPrompts(
+      const waitingPrompts = this.agentManager.waitForWaitingPrompts(
         agentId,
         AbortSignal.any([abortController.signal, sourceSignal]),
       );
+      if (waitingPrompts) await waitingPrompts;
       // An agent with queued messages finishes after the last of them.
       await this.messageQueue?.waitForDrain(
         agentId,

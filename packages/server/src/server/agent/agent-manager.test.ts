@@ -1178,12 +1178,19 @@ test("prompts that waited out the same busy turn do not replace each other", asy
   }
 });
 
+test("completion waits add no await when no prompt is waiting", () => {
+  const manager = new AgentManager({ logger: createTestLogger() });
+  expect(manager.waitForWaitingPrompts("idle-agent", new AbortController().signal)).toBeNull();
+});
+
 test("completion waits include a prompt still waiting for a busy turn", async () => {
   const session = new SteeringTestSession({ provider: "codex", cwd: process.cwd() });
   const { manager, agentId, workdir, dispatched } = await startBusySteer(session);
   try {
     let released = false;
-    const wait = manager.waitForWaitingPrompts(agentId, new AbortController().signal).then(() => {
+    const waiting = manager.waitForWaitingPrompts(agentId, new AbortController().signal);
+    expect(waiting).not.toBeNull();
+    const wait = waiting!.then(() => {
       released = true;
       return undefined;
     });

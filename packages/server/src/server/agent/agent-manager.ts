@@ -3555,11 +3555,19 @@ export class AgentManager {
     });
   }
 
-  /** Resolves once the prompts waiting for this agent's turn when called have dispatched. */
-  async waitForWaitingPrompts(agentId: string, signal: AbortSignal): Promise<void> {
+  /**
+   * Resolves once the prompts waiting for this agent's turn when called have dispatched. Returns
+   * null when none are waiting, so a caller can skip the await: completion waits run in the
+   * finish subscriptions' hot path, where an extra microtask reorders permission reports.
+   */
+  waitForWaitingPrompts(agentId: string, signal: AbortSignal): Promise<void> | null {
     signal.throwIfAborted();
     const waiting = [...(this.waitingPrompts.get(agentId) ?? [])];
-    if (waiting.length === 0) return;
+    if (waiting.length === 0) return null;
+    return this.awaitWaitingPrompts(waiting, signal);
+  }
+
+  private async awaitWaitingPrompts(waiting: Promise<void>[], signal: AbortSignal): Promise<void> {
     let aborted!: () => void;
     const cancellation = new Promise<never>((_resolve, reject) => {
       aborted = () => reject(new DOMException("Wait aborted", "AbortError"));

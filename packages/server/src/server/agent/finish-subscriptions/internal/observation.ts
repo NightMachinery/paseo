@@ -31,7 +31,8 @@ export function createFinishObservation(input: {
       async wait(agentId, signal) {
         await input.waitForResume(agentId, signal);
         await input.messages().waitForDispatch(agentId, signal);
-        await agentManager.waitForWaitingPrompts(agentId, signal);
+        const waitingPrompts = agentManager.waitForWaitingPrompts(agentId, signal);
+        if (waitingPrompts) await waitingPrompts;
         await input.messageQueue?.().waitForDrain(agentId, signal);
         signal.throwIfAborted();
         const live = agentManager.getAgent(agentId);
