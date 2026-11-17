@@ -35,7 +35,11 @@ export function createFinishObservation(input: {
           const stored = await agentStorage.get(agentId);
           return {
             status: stored?.lastStatus === "error" ? "error" : "idle",
-            final: stored ? buildStoredAgentPayload(stored, [stored.provider]) : null,
+            final: stored
+              ? buildStoredAgentPayload(stored, [stored.provider], (provider, own) =>
+                  agentManager.effectiveOptionsFor(provider, own),
+                )
+              : null,
             lastMessage: await agentManager.getLastAssistantMessage(agentId),
             error: stored?.lastError ?? null,
           };
@@ -94,7 +98,14 @@ export function createFinishObservation(input: {
             type: "turn_started",
             provider: current.provider,
           });
-        else publish(stored ? buildStoredAgentPayload(stored, [stored.provider]) : null);
+        else
+          publish(
+            stored
+              ? buildStoredAgentPayload(stored, [stored.provider], (provider, own) =>
+                  agentManager.effectiveOptionsFor(provider, own),
+                )
+              : null,
+          );
         const stop = () => unsubscribe();
         signal.addEventListener("abort", stop, { once: true });
         return async () => {
