@@ -107,7 +107,13 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   `finish-subscriptions/internal/observation.ts`), `session.ts` and the
   `schedule/service.ts` type. Daemon
   code: it takes effect only where the daemon runs this fork, not in the desktop
-  build. Upstream PR #9208 (issue #6806); drop when merged.
+  build. Since the #9757 carry below, agent messages, finish notifications and `queue`
+  sends never take this path (they wait for the turn to end in their queue), so it
+  covers steers that act on the running turn directly: the app's, and a top-level
+  `paseo send` or MCP send. In `agent-prompt.ts` an idle-only prompt skips the steer, and
+  the rejoin of prompts that waited out the same turn stays; completion waits wait for
+  waiting prompts, then for the send queue to drain. Upstream PR #9208 (issue #6806); drop
+  when merged.
 - **A scheduled run that finishes sends no phone push.** `packages/server/src/server/ypaseo/scheduled-push.ts`,
   hooked into `broadcastAgentAttention` in `packages/server/src/server/websocket-server.ts`.
   Permission and error pushes still go out. Daemon code. Replaces the bundle patch
@@ -202,3 +208,28 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   merges cleanly. Unit test `workspace-header-menu.test.tsx`, browser test
   `packages/app/e2e/browser/workspace-header-pin.spec.ts`. Upstream PR #9697 (branch
   `workspace-header-pin`; related Discussion #8644); drop when upstream merges it.
+- **Agent messages wait for the running turn to end.** Upstream #9757, cherry-picked from
+  `origin/main` (41c294c78) because no release tag contains it yet:
+  `packages/server/src/server/agent/agent-messages/delivery.ts` holds agent-originated
+  messages and finish notifications (`steer`, the default for agent callers) until the
+  recipient's turn ends, then dispatches them `idleOnly`; only an explicit `interrupt`
+  replaces a running turn. Wired in `websocket-server.ts`, with `agent-prompt.ts` and
+  `agent-manager.ts` changes. Daemon code. Drop when an upstream release that contains
+  #9757 is merged.
+- **Queue a message until the running turn ends (`--behavior queue`).** A daemon-owned
+  per-agent queue (`packages/server/src/server/agent/agent-message-queue.ts`, persisted in
+  `$PASEO_HOME/agent-message-queue/`) behind `AgentManager.streamAgentIfIdle`; CLI
+  `paseo send --behavior queue`, MCP `activeTurnBehavior: "queue"`, receipts with
+  `disposition`/`queuePosition`/`revived`, `queuedMessages` in snapshots, `paseo inspect` and
+  `get_agent_status`, and host `features` in `paseo daemon status --json`. Gated on
+  `server_info.features.agentMessageQueue`. Needs the #9757 entry above. Tests
+  `agent-message-queue.test.ts`, `daemon-e2e/message-queue.test.ts`. Upstream PR #10026
+  (branch `send-queue-behavior`, issue #9853); drop when upstream merges it.
+- **`paseo send` steers by default, or follows `$PASEO_SEND_BEHAVIOR`.**
+  `resolveSendBehavior` in `packages/cli/src/commands/agent/send.ts` (tests in `send.test.ts`),
+  the `--behavior` help, `public-docs/cli.md` and `cli.zh-CN.md`, and the send example in
+  `skills/paseo/SKILL.md`, which passes `--behavior steer`. Without `--behavior` the CLI uses
+  the variable when set (`interrupt`, `steer` or `queue`; any other value is an error and
+  nothing is sent), else `steer` for every caller, where upstream interrupts for callers that
+  are not agents. An interrupt during a Claude tool call makes Claude Code tell the agent its
+  tool call was rejected and to stop. Permanent while this fork exists.
