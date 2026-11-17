@@ -42,6 +42,35 @@ export interface AgentSendOptions extends CommandOptions {
   promptFile?: string;
 }
 
+const SEND_BEHAVIORS = ["interrupt", "steer", "queue"] as const satisfies ActiveTurnBehavior[];
+
+/** YPaseo: the default for `--behavior` when the flag is absent. */
+export const SEND_BEHAVIOR_ENV = "PASEO_SEND_BEHAVIOR";
+
+/**
+ * YPaseo: `--behavior`, else `$PASEO_SEND_BEHAVIOR`, else `steer` for every caller. Upstream
+ * defaults to `interrupt` for non-agent callers; an interrupt that lands during a Claude tool
+ * call makes Claude Code tell the agent its tool call was rejected and to stop. An empty
+ * variable counts as unset.
+ */
+export function resolveSendBehavior(
+  explicit: ActiveTurnBehavior | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): ActiveTurnBehavior {
+  if (explicit) return explicit;
+  const fromEnv = env[SEND_BEHAVIOR_ENV]?.trim();
+  if (!fromEnv) return "steer";
+  if ((SEND_BEHAVIORS as readonly string[]).includes(fromEnv)) {
+    return fromEnv as ActiveTurnBehavior;
+  }
+  const error: CommandError = {
+    code: "INVALID_SEND_BEHAVIOR",
+    message: `${SEND_BEHAVIOR_ENV} is "${fromEnv}"; it must be one of: ${SEND_BEHAVIORS.join(", ")}`,
+    details: `Unset ${SEND_BEHAVIOR_ENV} or pass --behavior to override it. Nothing was sent.`,
+  };
+  throw error;
+}
+
 export function addSendOptions(cmd: Command): Command {
   return cmd
     .description("Send a message/task to an existing agent")
@@ -53,8 +82,8 @@ export function addSendOptions(cmd: Command): Command {
     .addOption(
       new Option(
         "--behavior <behavior>",
-        "Active-turn behavior (agent default: steer waits for turn end; otherwise: interrupt). queue: hold the message until the running turn and earlier queued messages end, then run it as its own turn",
-      ).choices(["interrupt", "steer", "queue"]),
+        `Active-turn behavior (default: $${SEND_BEHAVIOR_ENV} if set, else steer; an agent's steer waits for turn end). queue: hold the message until the running turn and earlier queued messages end, then run it as its own turn`,
+      ).choices([...SEND_BEHAVIORS]),
     )
     .option("--no-wait", "Return immediately without waiting for completion");
 }
@@ -209,6 +238,8 @@ export async function runSendCommand(
     promptOption: options.prompt,
     promptFile: options.promptFile,
   });
+  // Before connecting: an invalid $PASEO_SEND_BEHAVIOR sends nothing.
+  const activeTurnBehavior = resolveSendBehavior(options.behavior);
 
   const client = await connectToDaemon({ target: options.daemonTarget });
 
@@ -222,7 +253,7 @@ export async function runSendCommand(
     const receipt = await client.sendAgentMessage(agentIdArg, promptInput, {
       images,
       sourceAgentId,
-      activeTurnBehavior: options.behavior ?? (sourceAgentId ? "steer" : "interrupt"),
+      activeTurnBehavior,
     });
 
     const receiptFields = {

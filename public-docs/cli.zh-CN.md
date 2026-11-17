@@ -302,7 +302,7 @@ paseo send <id> --behavior interrupt "stop and do this instead"
 paseo send <id> --behavior queue "when you are done, update the changelog"
 ```
 
-由 Agent 发起的发送（设置了 `PASEO_AGENT_ID`）默认引导正在进行的轮次。其他发送默认中断它。使用 `--behavior steer` 或 `--behavior interrupt` 覆盖默认行为。引导使用与客户端相同的后备方式：如果无法引导，正在进行的轮次会被中断并替换。
+不加 `--behavior` 时，如果设置了 `$PASEO_SEND_BEHAVIOR`（`interrupt`、`steer` 或 `queue`；其他值会报错，不会发送任何内容），`paseo send` 就使用它，否则对所有调用方都使用 `steer`。这是 YPaseo 的默认值：上游 Paseo 会中断非 Agent 发起的发送，而在 Claude 执行工具调用期间到达的中断会让 Claude Code 告诉 Agent 它的工具调用被拒绝并停下来。由 Agent 发起的引导（设置了 `PASEO_AGENT_ID`）会等正在进行的轮次结束；其他引导会加入正在进行的轮次。引导使用与客户端相同的后备方式：如果无法引导，正在进行的轮次会被中断并替换。
 
 `--behavior queue` 不会打扰正在进行的轮次。主机会保存这条消息，等正在进行的轮次结束后（无论是完成、失败还是被停止）再把它作为单独的一轮启动。多条排队消息按发送顺序执行，每条一轮。如果 Agent 空闲，消息会立即开始。排队消息在主机重启后仍然保留，并显示在 `paseo inspect <id>` 中（`--json` 输出里的 `QueuedMessages`）。归档 Agent 会丢弃这些消息。不加 `--no-wait` 时，`paseo send` 会等到最后一条排队消息的轮次结束。
 
