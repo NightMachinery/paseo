@@ -179,17 +179,19 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   Browser test `packages/app/e2e/browser/ypaseo-ready-to-review.spec.ts`, which also covers the
   finished-subagent entry above. Upstream Discussion #4495 (comment); drop when upstream ships
   a bulk mark-as-read.
-- **ACP thinking options per model, and a recorded model that follows thinking changes.**
+- **ACP thinking probe, and a recorded model that follows thinking changes.**
   `packages/server/src/server/agent/providers/acp-agent.ts` (with `acp-options.ts`, tests in
-  `acp-agent.test.ts`, and `test-utils/fake-acp-agent.mjs`, which this branch takes from
-  upstream `main` before its release). Three upstream commits carried as cherry-picks: PR #9616
-  by doskoi (each model's thinking options come from its own `_meta.reasoningEfforts`, issue
-  #9646); an opt-in `probeModelThinking` provider option that switches the catalog probe
-  session through each model to read its `thought_level` choices, for agents such as `agy acp`
-  that publish no per-model metadata (set `"options": {"probeModelThinking": true}` on the
-  provider); and a fix that records `<model>-<level>` after a thinking change, a model change or
-  a `config_option_update` when the agent lists that id. Daemon code. The last two are upstream
-  PRs #9682 (stacked on #9616) and #9683, both linked from issue #9646. On the next upstream merge, a conflict in
+  `acp-agent.test.ts`, and `test-utils/fake-acp-agent.mjs`). Sits on upstream #9717 (v0.16.0,
+  which merged doskoi's #9616 for issue #9646): a model with its own `_meta` reasoning levels
+  shows those, and any other model gets the session's levels. Two upstream PRs carried as
+  cherry-picks on top: an opt-in `probeModelThinking` provider option that switches the catalog
+  probe session through each model that got the session's levels and reads its own
+  `thought_level` choices and default, for agents such as `agy acp` that publish no per-model
+  metadata (set `"options": {"probeModelThinking": true}` on the provider; the resolver context
+  gains `sessionModels` so the probe can see each model's `_meta`); and a fix that records
+  `<model>-<level>` after a thinking change, a model change or a `config_option_update` when the
+  agent lists that id. Daemon code. Upstream PRs #9682 (written on #9616; needs rebasing on
+  #9717) and #9683, both linked from issue #9646. On an upstream merge, a conflict in
   `fake-acp-agent.mjs` is resolved by taking upstream's file and reapplying the
   `models`/`modelLevels` scenario. Drop each part when upstream merges it.
 - **Pin and unpin the open workspace from the workspace header's ⋯ menu.**
