@@ -59,9 +59,11 @@ describe("ypaseoRootRequiresAttention", () => {
     expect(rootBucket(agent, [parent, agent])).toBe("needs_input");
   });
 
-  it("still reports an error as failed", () => {
+  it("still reports an unread error as failed", () => {
     expect(rootBucket(child({ attentionReason: "error" }), [parent])).toBe("failed");
-    expect(rootBucket(child({ status: "error" }), [parent])).toBe("failed");
+    expect(rootBucket(child({ status: "error", attentionReason: "error" }), [parent])).toBe(
+      "failed",
+    );
   });
 
   it("leaves a running child running", () => {
@@ -147,7 +149,10 @@ describe("WorkspaceDirectory with the YPaseo subagent attention rule", () => {
     const directory = new WorkspaceDirectory({
       logger: createTestLogger(),
       projectRegistry: { list: async () => [project] },
-      workspaceRegistry: { list: async () => workspaces },
+      workspaceRegistry: {
+        listActive: async () => workspaces,
+        get: async (id) => workspaces.find((workspace) => workspace.workspaceId === id) ?? null,
+      },
       listAgentPayloads: async () => agents,
       workspaceLastUserMessageTimes: async () => new Map(),
       listProviderSubagentActivity: async () => [],
