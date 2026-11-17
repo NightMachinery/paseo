@@ -141,11 +141,13 @@ paseo workspace create --isolation worktree --mode checkout-branch --branch exis
 paseo workspace create --isolation worktree --mode checkout-pr --pr-number 42
 paseo run --provider codex/gpt-5.4 --mode full-access --workspace <workspace-id> "<prompt>"
 paseo run --provider codex/gpt-5.4 --mode full-access --new-workspace worktree --worktree-mode branch-off --new-branch fix-x --base origin/main "<prompt>"
-paseo send <agent-id> "<follow-up>"
+paseo send --behavior steer <agent-id> "<follow-up>"
 paseo ls
 paseo schedule create --cron "*/15 * * * *" "ping main build"
 paseo heartbeat create --cron "*/15 * * * *" "check the build"
 ```
+
+Pass `paseo send` an explicit `--behavior steer`: an interrupt during a Claude tool call makes Claude Code tell the agent its tool call was rejected and to stop.
 
 Discover with `paseo --help` and `paseo <cmd> --help`.
 
