@@ -2,7 +2,7 @@
 import { useEffect } from "react";
 import type { ChatOutline } from "@/agent-stream/chat-outline/use-chat-outline";
 import { useRetainedPanelActive } from "@/components/retained-panel";
-import { hasActiveWebOverlay } from "@/lib/overlay-root";
+import { hasActiveOverlay } from "@/keyboard";
 import { usePaneFocus } from "@/panels/pane-context";
 import { isImeComposingKeyboardEvent } from "@/utils/keyboard-ime";
 import { promptNavigationDirection, promptNavigationTarget } from "./prompt-navigation";
@@ -34,7 +34,7 @@ export function usePromptNavigationKeys(outline: ChatOutline): void {
       return;
     }
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || hasActiveWebOverlay() || isImeComposingKeyboardEvent(event)) {
+      if (event.defaultPrevented || hasActiveOverlay() || isImeComposingKeyboardEvent(event)) {
         return;
       }
       const direction = promptNavigationDirection(event);
