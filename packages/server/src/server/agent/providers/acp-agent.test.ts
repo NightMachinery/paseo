@@ -2597,6 +2597,7 @@ describe("ACPAgentClient catalog discovery with probeModelThinking", () => {
     base: ["low", "medium", "high"],
     large: ["low", "medium", "high", "xhigh"],
     plain: undefined,
+    solo: ["low", "high", "max"],
   };
 
   function modelConfigOptions(model: string, level: string | undefined): SessionConfigOption[] {
@@ -2618,6 +2619,7 @@ describe("ACPAgentClient catalog discovery with probeModelThinking", () => {
   async function fetchProbedCatalog(input: {
     providerOptions?: Record<string, unknown>;
     rejectModel?: string;
+    extraModels?: NonNullable<NewSessionResponse["models"]>["availableModels"];
   }) {
     const requests: string[] = [];
     let currentModel = "base";
@@ -2633,6 +2635,7 @@ describe("ACPAgentClient catalog discovery with probeModelThinking", () => {
           { modelId: "large-xhigh", name: "Large (XHigh)" },
           { modelId: "plain", name: "Plain" },
           { modelId: "unmatched", name: "Unmatched" },
+          ...(input.extraModels ?? []),
         ],
       },
       configOptions: modelConfigOptions("base", "medium"),
@@ -2703,7 +2706,6 @@ describe("ACPAgentClient catalog discovery with probeModelThinking", () => {
       thinking: model.thinkingOptions?.map((option) => option.id),
       defaultThinkingOptionId: model.defaultThinkingOptionId,
       markedDefault: model.thinkingOptions?.find((option) => option.isDefault)?.id,
-      thinkingOptionsError: model.metadata?.thinkingOptionsError !== undefined,
     }));
     expect(agentConnection.signal.aborted).toBe(false);
     return { models, requests };
@@ -2720,42 +2722,38 @@ describe("ACPAgentClient catalog discovery with probeModelThinking", () => {
         thinking: ["low", "medium", "high"],
         defaultThinkingOptionId: "medium",
         markedDefault: "medium",
-        thinkingOptionsError: false,
       },
       {
         id: "base-high",
         thinking: ["low", "medium", "high"],
         defaultThinkingOptionId: "high",
         markedDefault: "high",
-        thinkingOptionsError: false,
       },
       {
         id: "large-low",
         thinking: ["low", "medium", "high", "xhigh"],
         defaultThinkingOptionId: "low",
         markedDefault: "low",
-        thinkingOptionsError: false,
       },
       {
         id: "large-xhigh",
         thinking: ["low", "medium", "high", "xhigh"],
         defaultThinkingOptionId: "xhigh",
         markedDefault: "xhigh",
-        thinkingOptionsError: false,
       },
       {
         id: "plain",
         thinking: undefined,
         defaultThinkingOptionId: undefined,
         markedDefault: undefined,
-        thinkingOptionsError: false,
       },
+      // No model select value to switch to, so it keeps upstream's fallback: the session's
+      // thought_level options, which describe the startup model.
       {
         id: "unmatched",
-        thinking: undefined,
-        defaultThinkingOptionId: undefined,
-        markedDefault: undefined,
-        thinkingOptionsError: false,
+        thinking: ["low", "medium", "high"],
+        defaultThinkingOptionId: "medium",
+        markedDefault: "medium",
       },
     ]);
     // One switch per base model, never a prompt, and the probe session is closed.
@@ -2768,7 +2766,7 @@ describe("ACPAgentClient catalog discovery with probeModelThinking", () => {
     ]);
   });
 
-  test("leaves the remaining models unknown once a model switch fails", async () => {
+  test("keeps the session fallback for models after a failed model switch", async () => {
     const { models, requests } = await fetchProbedCatalog({
       providerOptions: { probeModelThinking: true },
       rejectModel: "large",
@@ -2780,9 +2778,9 @@ describe("ACPAgentClient catalog discovery with probeModelThinking", () => {
       markedDefault: "high",
     });
     expect(models.find(({ id }) => id === "large-xhigh")).toMatchObject({
-      thinking: undefined,
-      defaultThinkingOptionId: undefined,
-      markedDefault: undefined,
+      thinking: ["low", "medium", "high"],
+      defaultThinkingOptionId: "medium",
+      markedDefault: "medium",
     });
     expect(requests).toEqual([
       "session/new",
@@ -2795,8 +2793,41 @@ describe("ACPAgentClient catalog discovery with probeModelThinking", () => {
   test("does not switch models unless the provider opts in", async () => {
     const { models, requests } = await fetchProbedCatalog({});
 
-    expect(models.find(({ id }) => id === "large-xhigh")?.thinking).toBeUndefined();
+    // Without the probe, a model without its own metadata gets upstream's fallback.
+    expect(models.find(({ id }) => id === "large-xhigh")).toEqual({
+      id: "large-xhigh",
+      thinking: ["low", "medium", "high"],
+      defaultThinkingOptionId: "medium",
+      markedDefault: "medium",
+    });
     expect(requests).toEqual(["session/new", "close"]);
+  });
+
+  test("leaves a model's own metadata levels to upstream's handling", async () => {
+    const { models, requests } = await fetchProbedCatalog({
+      providerOptions: { probeModelThinking: true },
+      extraModels: [
+        {
+          modelId: "solo-high",
+          name: "Solo (High)",
+          _meta: {
+            reasoningEffort: "high",
+            reasoningEfforts: [
+              { id: "low", label: "Low" },
+              { id: "high", label: "High" },
+            ],
+          },
+        },
+      ],
+    });
+
+    expect(models.find(({ id }) => id === "solo-high")).toEqual({
+      id: "solo-high",
+      thinking: ["low", "high"],
+      defaultThinkingOptionId: "high",
+      markedDefault: "high",
+    });
+    expect(requests).not.toContain("set:model-option=solo");
   });
 });
 
