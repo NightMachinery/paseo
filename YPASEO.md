@@ -233,3 +233,19 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   nothing is sent), else `steer` for every caller, where upstream interrupts for callers that
   are not agents. An interrupt during a Claude tool call makes Claude Code tell the agent its
   tool call was rejected and to stop. Permanent while this fork exists.
+- **Requests to an unloaded agent do not wait for its history replay.** Three commits,
+  written for upstream on `origin/main` (branch `unloaded-agent-requests`, for issue #8314;
+  the PR is not opened yet). The Claude history replay reads in batches and yields by time
+  (`providers/claude/transcript-history.ts` and `agent.ts`), so a long session loads in a few
+  hundred event-loop turns instead of over a hundred thousand. A user send with a `messageId` to
+  an agent that is not loaded is saved beside its receipt (`message-receipts/index.ts`, under
+  `$PASEO_HOME/agent-requests/accepted/`), answered with `deliveryStatus: "queued"` and
+  `revived: true`, then delivered after the load by `agent/user-message-delivery.ts`; a failed
+  load reports the undelivered text on the agent, and the next start delivers what a stopped
+  daemon left. Command lists for an unloaded agent come from its stored config, and the
+  provider subagent list loads for history only (`session.ts`). Fork-only part: the queue
+  behavior of #10026 goes through `deliverUserMessage` too, so a `queue` send to an unloaded
+  agent is answered before the load and has no `disposition`. Daemon code. Tests
+  `daemon-e2e/unloaded-agent-requests.test.ts`, `message-receipts/index.test.ts`,
+  `providers/claude/agent.history-load.test.ts`. Drop when upstream merges it; until #10026
+  merges, a conflict in the send handler keeps the queue branch for agent senders only.
