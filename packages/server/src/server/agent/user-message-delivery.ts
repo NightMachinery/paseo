@@ -48,8 +48,6 @@ export async function deliverUserMessage(
     /** Abandons the wait for the run to start, not the delivery. */
     signal?: AbortSignal;
     setProvisionalTitle: boolean;
-    /** Called when a steer waits for the running turn, such as a compaction, to accept it. */
-    onSteerWait?: () => void;
   },
 ): Promise<QueueSubmitResult> {
   const { agentManager, agentStorage, logger } = deps;
@@ -92,7 +90,6 @@ export async function deliverUserMessage(
     sessionMode: message.sessionMode,
     // A typed message answers any permission the agent is blocked on.
     clearPendingPermissions: true,
-    onSteerWait: options.onSteerWait,
     beforeDispatch: options.beforeDispatch,
     logger,
   });

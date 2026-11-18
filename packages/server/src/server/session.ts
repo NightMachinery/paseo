@@ -9090,12 +9090,6 @@ export class Session {
             // The sender has its receipt; leaving must not abandon the delivery.
             signal: deferred ? undefined : this.delivery.requestSignal,
             setProvisionalTitle: msg.messageId !== undefined,
-            // A steer waiting out a compaction may take minutes; answer now rather than let the
-            // request time out, as for agent messages.
-            onSteerWait: () => {
-              deliveryStatus = "queued";
-              queued();
-            },
           },
         );
       };
@@ -9211,11 +9205,6 @@ export class Session {
         agentId,
         AbortSignal.any([abortController.signal, sourceSignal]),
       );
-      const waitingPrompts = this.agentManager.waitForWaitingPrompts(
-        agentId,
-        AbortSignal.any([abortController.signal, sourceSignal]),
-      );
-      if (waitingPrompts) await waitingPrompts;
       // An agent with queued messages finishes after the last of them.
       await this.messageQueue?.waitForDrain(
         agentId,

@@ -101,19 +101,6 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   release channel and "Check for updates" rows, which do nothing in YPaseo (its
   updater is off) and whose channel setting is shared with the official app.
   Permanent while this fork exists.
-- **A message that arrives during a Claude compaction waits for it.**
-  `packages/server/src/server/agent/` (`agent-manager.ts`, `agent-prompt.ts`,
-  `agent-sdk-types.ts`, `providers/claude/agent.ts`,
-  `finish-subscriptions/internal/observation.ts`), `session.ts` and the
-  `schedule/service.ts` type. Daemon
-  code: it takes effect only where the daemon runs this fork, not in the desktop
-  build. Since the #9757 carry below, agent messages, finish notifications and `queue`
-  sends never take this path (they wait for the turn to end in their queue), so it
-  covers steers that act on the running turn directly: the app's, and a top-level
-  `paseo send` or MCP send. In `agent-prompt.ts` an idle-only prompt skips the steer, and
-  the rejoin of prompts that waited out the same turn stays; completion waits wait for
-  waiting prompts, then for the send queue to drain. Upstream PR #9208 (issue #6806); drop
-  when merged.
 - **A scheduled run that finishes sends no phone push.** `packages/server/src/server/ypaseo/scheduled-push.ts`,
   hooked into `broadcastAgentAttention` in `packages/server/src/server/websocket-server.ts`.
   Permission and error pushes still go out. Daemon code. Replaces the bundle patch
