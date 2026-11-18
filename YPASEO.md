@@ -234,8 +234,8 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   are not agents. An interrupt during a Claude tool call makes Claude Code tell the agent its
   tool call was rejected and to stop. Permanent while this fork exists.
 - **Requests to an unloaded agent do not wait for its history replay.** Three commits,
-  written for upstream on `origin/main` (branch `unloaded-agent-requests`, for issue #8314;
-  the PR is not opened yet). The Claude history replay reads in batches and yields by time
+  written for upstream on `origin/main` (branch `unloaded-agent-requests`): upstream PR
+  #10140, part of issue #8314. The Claude history replay reads in batches and yields by time
   (`providers/claude/transcript-history.ts` and `agent.ts`), so a long session loads in a few
   hundred event-loop turns instead of over a hundred thousand. A user send with a `messageId` to
   an agent that is not loaded is saved beside its receipt (`message-receipts/index.ts`, under
