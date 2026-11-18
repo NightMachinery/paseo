@@ -142,8 +142,9 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   `directorySuggestionsExactMatch`), so the row needs the fork's daemon. Upstream PR #9619 (Discussion #9601); drop when merged.
 - **Add project can open on directory search.** Settings > General > Add project,
   `packages/app/src/add-project-flow/model.ts` and `add-project-flow.tsx`; carries
-  the upstream PR's strings in every locale so it merges cleanly. Upstream PR #9621
-  (Discussion #9620); drop when merged.
+  the upstream PR's strings in every locale so it merges cleanly. The flow's footer has an
+  "Always open on directory search" checkbox bound to the same setting, also part of the PR.
+  Upstream PR #9621 (Discussion #9620); drop when merged.
 - **Cmd+N starts in a scratch workspace (a new git repository).**
   `packages/app/src/ypaseo/scratch-workspace*.ts(x)`, called from
   `packages/app/src/screens/new-workspace-screen.tsx` (in place of the project picker hook,
