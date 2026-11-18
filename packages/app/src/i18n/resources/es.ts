@@ -2553,6 +2553,7 @@ export const es: TranslationResources = {
         title: "Agregar proyecto",
         startOnDirectorySearch: {
           label: "Abrir en la búsqueda de directorio",
+          inlineLabel: "Abrir siempre en la búsqueda de directorio",
           description:
             "Agregar proyecto empieza en la búsqueda de directorio. Atrás vuelve a las demás opciones.",
         },
