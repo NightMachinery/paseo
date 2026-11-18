@@ -101,6 +101,17 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   release channel and "Check for updates" rows, which do nothing in YPaseo (its
   updater is off) and whose channel setting is shared with the official app.
   Permanent while this fork exists.
+- **A Claude turn that ends with a steer still queued finishes after Claude answers it.**
+  `packages/server/src/server/agent/providers/claude/agent.ts` (`holdTurnCompletion` and the
+  steer lifecycle in `forgetStartedMessage`), tests in `providers/claude/agent.test.ts` and
+  `daemon-e2e/claude-steer-during-compaction.real.e2e.test.ts`. With upstream #10028 Claude
+  Code queues a steer sent during a manual `/compact`, ends the `/compact` turn first and
+  answers the steer in a turn of its own. The session now holds a turn's completion while a
+  steer it accepted has not started, so status, `paseo wait` and finish notifications fire
+  once, after the reply. The same covers a steer that lands while Claude writes its final
+  reply. Bounded: a held completion is reported when Claude cancels the steer, or after 15 s
+  (logged) if Claude never starts it. Daemon code. Offered upstream on #6806; drop when
+  upstream fixes it.
 - **A scheduled run that finishes sends no phone push.** `packages/server/src/server/ypaseo/scheduled-push.ts`,
   hooked into `broadcastAgentAttention` in `packages/server/src/server/websocket-server.ts`.
   Permission and error pushes still go out. Daemon code. Replaces the bundle patch

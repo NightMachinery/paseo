@@ -16,6 +16,7 @@ import {
   normalizeClaudeAskUserQuestionRequestInput,
   normalizeClaudeAskUserQuestionUpdatedInput,
   resolveClaudeCodeVersion,
+  STEER_FOLLOW_UP_START_TIMEOUT_MS,
   toClaudeSdkMcpConfig,
 } from "./agent.js";
 import { AgentManager } from "../../agent-manager.js";
@@ -1595,6 +1596,152 @@ describe("ClaudeAgentSession features", () => {
     } finally {
       unsubscribe();
       await session.close();
+    }
+  });
+
+  function steerTestResult(uuid: string): SDKMessage {
+    return {
+      type: "result",
+      subtype: "success",
+      duration_ms: 100,
+      duration_api_ms: 75,
+      is_error: false,
+      num_turns: 1,
+      result: "done",
+      stop_reason: null,
+      total_cost_usd: 0,
+      usage: { input_tokens: 10, output_tokens: 7 },
+      modelUsage: {},
+      permission_denials: [],
+      uuid,
+      session_id: "session-1",
+    } as unknown as SDKMessage;
+  }
+
+  function commandLifecycle(
+    uuid: string,
+    state: "started" | "completed" | "cancelled",
+  ): SDKMessage {
+    return { type: "command_lifecycle", command_uuid: uuid, state } as unknown as SDKMessage;
+  }
+
+  // Runs /compact, steers while Claude compacts, and returns the steer's SDK uuid.
+  async function steerDuringCompact() {
+    const { queryFactory, push } = createStreamingQueryMock();
+    const client = new ClaudeAgentClient({
+      logger,
+      queryFactory,
+      resolveBinary: async () => "/test/claude/bin",
+    });
+    const session = await client.createSession({ provider: "claude", cwd: process.cwd() });
+    const events: AgentStreamEvent[] = [];
+    const unsubscribe = session.subscribe((event) => events.push(event));
+    const { turnId } = await session.startTurn("/compact");
+    const input = queryFactory.mock.calls[0]?.[0].prompt as AsyncIterable<SDKUserMessage>;
+    const iterator = input[Symbol.asyncIterator]();
+    const compact = await iterator.next();
+    push(commandLifecycle(compact.value!.uuid!, "started"));
+    push({
+      type: "system",
+      subtype: "status",
+      status: "compacting",
+      session_id: "session-1",
+    } as unknown as SDKMessage);
+    await vi.waitFor(() =>
+      expect(events).toContainEqual(
+        expect.objectContaining({ item: { type: "compaction", status: "loading" } }),
+      ),
+    );
+    await expect(
+      session.steerActiveTurn?.("Reply exactly: AFTER_COMPACT", { expectedTurnId: turnId }),
+    ).resolves.toMatchObject({ status: "accepted" });
+    const steer = await iterator.next();
+    const steerUuid = steer.value!.uuid!;
+    const completions = () => events.filter((event) => event.type === "turn_completed");
+    // Whether the session has read the result and is holding the turn's completion.
+    const holdsCompletion = () =>
+      (session as unknown as { heldTurnCompletion: unknown }).heldTurnCompletion !== null;
+    const close = async () => {
+      unsubscribe();
+      await session.close();
+    };
+    return { push, events, steerUuid, completions, holdsCompletion, close };
+  }
+
+  test("a turn that ends with a steer still queued finishes only after Claude answers it", async () => {
+    const { push, events, steerUuid, completions, holdsCompletion, close } =
+      await steerDuringCompact();
+    try {
+      // Claude Code ends the /compact turn first and answers the steer in a turn of its own.
+      push(steerTestResult("compact-result"));
+      push({
+        type: "system",
+        subtype: "status",
+        status: "requesting",
+        session_id: "session-1",
+      } as unknown as SDKMessage);
+      await vi.waitFor(() => expect(holdsCompletion()).toBe(true));
+      expect(completions()).toHaveLength(0);
+
+      push(commandLifecycle(steerUuid, "started"));
+      push({
+        type: "system",
+        subtype: "init",
+        session_id: "session-1",
+        permissionMode: "default",
+        model: "claude-haiku-4-5",
+      } as unknown as SDKMessage);
+      await vi.waitFor(() => expect(holdsCompletion()).toBe(false));
+      expect(completions()).toHaveLength(0);
+
+      push(steerTestResult("steer-result"));
+      await vi.waitFor(() => expect(completions()).toHaveLength(1));
+      // One turn from /compact to the reply: no second start for the steer's own run.
+      expect(events.filter((event) => event.type === "turn_started")).toHaveLength(1);
+    } finally {
+      await close();
+    }
+  });
+
+  test("a turn that ends with a steer still queued finishes when Claude cancels the steer", async () => {
+    const { push, steerUuid, completions, holdsCompletion, close } = await steerDuringCompact();
+    try {
+      push(steerTestResult("compact-result"));
+      await vi.waitFor(() => expect(holdsCompletion()).toBe(true));
+      expect(completions()).toHaveLength(0);
+
+      push(commandLifecycle(steerUuid, "cancelled"));
+      await vi.waitFor(() => expect(completions()).toHaveLength(1));
+    } finally {
+      await close();
+    }
+  });
+
+  test("a turn that ends with a steer still queued finishes anyway when Claude never starts it", async () => {
+    const { push, completions, holdsCompletion, close } = await steerDuringCompact();
+    try {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      push(steerTestResult("compact-result"));
+      // vi.waitFor would advance the fake clock, so poll on real event-loop turns instead.
+      while (!holdsCompletion()) await new Promise((resolve) => setImmediate(resolve));
+      await vi.advanceTimersByTimeAsync(STEER_FOLLOW_UP_START_TIMEOUT_MS - 1);
+      expect(completions()).toHaveLength(0);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(completions()).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+      await close();
+    }
+  });
+
+  test("a turn finishes at once when Claude took the steer into it", async () => {
+    const { push, steerUuid, completions, close } = await steerDuringCompact();
+    try {
+      push(commandLifecycle(steerUuid, "started"));
+      push(steerTestResult("turn-result"));
+      await vi.waitFor(() => expect(completions()).toHaveLength(1));
+    } finally {
+      await close();
     }
   });
 

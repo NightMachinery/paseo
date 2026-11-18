@@ -608,6 +608,12 @@ interface ClaudeOptionsLogSummary {
 const MAX_RECENT_STDERR_CHARS = 4000;
 const STDERR_FLUSH_WAIT_MS = 150;
 const STDERR_FLUSH_POLL_INTERVAL_MS = 10;
+/**
+ * How long a turn that ended with a steer still queued waits for Claude to start answering it
+ * before it reports the turn finished anyway. Claude Code starts the queued message right after
+ * the result, so this only bounds a message that is lost or never announced.
+ */
+export const STEER_FOLLOW_UP_START_TIMEOUT_MS = 15_000;
 
 function summarizeClaudeOptionsForLog(options: ClaudeOptions): ClaudeOptionsLogSummary {
   const systemPromptRaw = options.systemPrompt;
@@ -2327,6 +2333,22 @@ class ClaudeAgentSession implements AgentSession {
   private readonly unstartedMessageUuids = new Set<string>();
   /** Human steers whose text has not reached Claude yet and therefore supersede blocking cards. */
   private readonly permissionClearingSteerUuids = new Set<string>();
+  /**
+   * Steers whose command_lifecycle has not reached "started": Claude has not begun answering them.
+   * A turn whose result arrives while one is waiting is not finished, since Claude answers the
+   * steer in a turn of its own right after (a steer during /compact always takes this path).
+   */
+  private readonly unansweredSteerUuids = new Set<string>();
+  /**
+   * The completion of a turn that ended with a steer still unanswered. The turn stays open until
+   * Claude starts answering the steer, whose own result then ends it, so waiters and finish
+   * notifications see one finish after the reply. The timer reports the completion anyway if
+   * Claude never starts the steer.
+   */
+  private heldTurnCompletion: {
+    event: Extract<AgentStreamEvent, { type: "turn_completed" }>;
+    timer: ReturnType<typeof setTimeout>;
+  } | null = null;
   private claudeSessionId: string | null;
   private persistence: AgentPersistenceHandle | null;
   private currentMode: PermissionMode;
@@ -2681,7 +2703,10 @@ class ClaudeAgentSession implements AgentSession {
     clearPendingPermissions: boolean,
   ): void {
     const uuid = message.uuid;
-    if (uuid) this.unstartedMessageUuids.add(uuid);
+    if (uuid) {
+      this.unstartedMessageUuids.add(uuid);
+      this.unansweredSteerUuids.add(uuid);
+    }
     if (uuid && clearPendingPermissions) {
       this.permissionClearingSteerUuids.add(uuid);
     }
@@ -2693,6 +2718,7 @@ class ClaudeAgentSession implements AgentSession {
     } catch (error) {
       if (uuid) {
         this.unstartedMessageUuids.delete(uuid);
+        this.unansweredSteerUuids.delete(uuid);
         this.permissionClearingSteerUuids.delete(uuid);
       }
       throw error;
@@ -3109,6 +3135,7 @@ class ClaudeAgentSession implements AgentSession {
     // without reporting this closure as an explicit turn cancellation.
     this.flushPendingToolCalls();
     this.subscribers.clear();
+    this.dropHeldTurnCompletion();
     this.activeForegroundTurnId = null;
     this.activeForegroundQuery = null;
     this.activeForegroundInput = null;
@@ -4113,6 +4140,7 @@ class ClaudeAgentSession implements AgentSession {
     if (event.type === "turn_failed" || event.type === "turn_canceled") {
       this.flushPendingToolCalls();
     }
+    this.dropHeldTurnCompletion();
     this.notifySubscribers(event);
     this.activeForegroundTurnId = null;
     this.activeForegroundQuery = null;
@@ -4124,6 +4152,22 @@ class ClaudeAgentSession implements AgentSession {
   }
 
   private dispatchEvents(events: AgentStreamEvent[]): void {
+    const completion = events.find(
+      (event): event is Extract<AgentStreamEvent, { type: "turn_completed" }> =>
+        event.type === "turn_completed",
+    );
+    if (
+      completion &&
+      this.unansweredSteerUuids.size > 0 &&
+      (this.activeForegroundTurnId || this.autonomousTurn)
+    ) {
+      for (const event of events) {
+        if (event !== completion) this.notifySubscribers(event);
+      }
+      this.holdTurnCompletion(completion);
+      return;
+    }
+
     let terminalSeen = false;
     for (const event of events) {
       this.notifySubscribers(event);
@@ -4131,6 +4175,7 @@ class ClaudeAgentSession implements AgentSession {
     }
 
     if (terminalSeen) {
+      this.dropHeldTurnCompletion();
       this.compactionMarkerOpen = false;
       if (this.activeForegroundTurnId) {
         this.activeForegroundTurnId = null;
@@ -4146,6 +4191,62 @@ class ClaudeAgentSession implements AgentSession {
         this.activeTurnHasAssistantText = false;
         this.syncTurnState("autonomous turn terminal");
       }
+    }
+  }
+
+  /**
+   * Claude finished a turn but has a steer queued that it will answer next, in a turn of its own.
+   * Reporting the completion now would make the agent look done (status idle, `paseo wait`,
+   * finish notifications) while Claude is about to work for possibly many minutes, so the turn
+   * stays open: Claude's run on the steer continues it, and that run's result completes it.
+   */
+  private holdTurnCompletion(event: Extract<AgentStreamEvent, { type: "turn_completed" }>): void {
+    this.dropHeldTurnCompletion();
+    // Claude's own turn is over; the next one starts fresh.
+    this.activeTurnHasAssistantText = false;
+    this.compactionMarkerOpen = false;
+    const timer = setTimeout(() => {
+      if (this.heldTurnCompletion?.timer !== timer) return;
+      this.logger.warn(
+        {
+          agentId: this.agentId,
+          turnId: this.activeForegroundTurnId ?? this.autonomousTurn?.id ?? undefined,
+          unansweredSteers: this.unansweredSteerUuids.size,
+          timeoutMs: STEER_FOLLOW_UP_START_TIMEOUT_MS,
+        },
+        "Claude did not start a queued steer after its turn ended; reporting the turn finished",
+      );
+      // Claude never announced these, so later turns must not wait for them either.
+      this.unansweredSteerUuids.clear();
+      this.releaseHeldTurnCompletion();
+    }, STEER_FOLLOW_UP_START_TIMEOUT_MS);
+    this.heldTurnCompletion = { event, timer };
+  }
+
+  /** Reports the held completion: the steer that kept the turn open will not run in it. */
+  private releaseHeldTurnCompletion(): void {
+    const held = this.heldTurnCompletion;
+    if (!held) return;
+    this.dropHeldTurnCompletion();
+    if (this.closed) return;
+    this.dispatchEvents([held.event]);
+  }
+
+  private dropHeldTurnCompletion(): void {
+    if (!this.heldTurnCompletion) return;
+    clearTimeout(this.heldTurnCompletion.timer);
+    this.heldTurnCompletion = null;
+  }
+
+  /** A steer Claude started answers in the held turn; one it cancelled ends that turn. */
+  private observeSteerLifecycle(state: ClaudeCommandLifecycle["state"]): void {
+    if (!this.heldTurnCompletion) return;
+    if (state === "started") {
+      this.dropHeldTurnCompletion();
+      return;
+    }
+    if (this.unansweredSteerUuids.size === 0) {
+      this.releaseHeldTurnCompletion();
     }
   }
 
@@ -4169,6 +4270,7 @@ class ClaudeAgentSession implements AgentSession {
     if (!this.autonomousTurn) {
       return;
     }
+    this.dropHeldTurnCompletion();
     this.notifySubscribers({ type: "turn_completed", provider: "claude" });
     this.autonomousTurn = null;
     this.activeForegroundQuery = null;
@@ -4403,7 +4505,8 @@ class ClaudeAgentSession implements AgentSession {
     }
     if (message.state === "idle") {
       this.mainTurnInFlight = false;
-      this.completeAutonomousTurn();
+      // A held turn waits for its queued steer to start, or for its timer.
+      if (!this.heldTurnCompletion) this.completeAutonomousTurn();
     }
     return true;
   }
@@ -4676,6 +4779,7 @@ class ClaudeAgentSession implements AgentSession {
   private async withdrawUnstartedMessages(query: Query): Promise<boolean> {
     const uuids = [...this.unstartedMessageUuids];
     this.unstartedMessageUuids.clear();
+    this.unansweredSteerUuids.clear();
     this.permissionClearingSteerUuids.clear();
     if (uuids.length === 0) return true;
     // The SDK runtime supports this, but its public Query type has not caught up. Keep the
@@ -4788,6 +4892,9 @@ class ClaudeAgentSession implements AgentSession {
     if (!lifecycle || lifecycle.state === "queued") return;
     this.unstartedMessageUuids.delete(lifecycle.commandUuid);
     this.permissionClearingSteerUuids.delete(lifecycle.commandUuid);
+    if (this.unansweredSteerUuids.delete(lifecycle.commandUuid)) {
+      this.observeSteerLifecycle(lifecycle.state);
+    }
   }
 
   private appendTaskStateEvent(message: SDKMessage, events: AgentStreamEvent[]): void {

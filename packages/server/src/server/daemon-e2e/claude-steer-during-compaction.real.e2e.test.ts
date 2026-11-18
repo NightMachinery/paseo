@@ -66,7 +66,7 @@ describe("daemon E2E (real claude) - steer during compaction", () => {
     if (!canRun) context.skip();
   });
 
-  test("a steered message waits for a running /compact instead of cancelling it", async () => {
+  test("a steered message waits for a running /compact, and the agent finishes after answering it", async () => {
     const logger = pino({ level: "silent" });
     const cwd = tmpCwd();
     const daemon = await createTestPaseoDaemon({
@@ -100,15 +100,13 @@ describe("daemon E2E (real claude) - steer during compaction", () => {
       await client.sendAgentMessage(agent.id, "Reply exactly: AFTER_COMPACT", {
         activeTurnBehavior: "steer",
       });
-      await waitForTimeline(
-        client,
-        agent.id,
-        (items) => hasAssistantText(items, "AFTER_COMPACT"),
-        180_000,
-        "Claude answers the steered message",
-      );
-      await client.waitForFinish(agent.id, 120_000);
+      // Claude Code ends the /compact turn before it answers the steer. The agent is not done
+      // until the answer, so the wait returns only after it.
+      const finish = await client.waitForFinish(agent.id, 300_000);
+      expect(finish.status, finish.error).toBe("idle");
+      expect(finish.lastMessage).toContain("AFTER_COMPACT");
       const finalItems = await timelineItems(client, agent.id);
+      expect(hasAssistantText(finalItems, "AFTER_COMPACT")).toBe(true);
       expect(
         finalItems.filter((item) => item.type === "compaction").map((item) => item.status),
       ).toContain("completed");
@@ -118,5 +116,5 @@ describe("daemon E2E (real claude) - steer during compaction", () => {
       await daemon.close().catch(() => undefined);
       rmSync(cwd, { recursive: true, force: true });
     }
-  }, 420_000);
+  }, 600_000);
 });
