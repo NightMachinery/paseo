@@ -209,7 +209,10 @@ function describeReceipt(receipt: {
   deliveryStatus?: "queued";
   disposition?: SendDisposition;
   queuePosition?: number;
+  revived?: boolean;
 }): string {
+  if (receipt.revived && receipt.deliveryStatus === "queued")
+    return "Message saved; the agent is loading and receives it once loaded, not waiting for completion";
   if (receipt.deliveryStatus === "queued")
     return "Message queued for delivery after two quiet seconds and the current turn ends, unless interrupt was requested";
   if (receipt.disposition === "queued")

@@ -5496,7 +5496,11 @@ export const SendAgentMessageResponseMessageSchema = z.object({
     disposition: SendDispositionSchema.optional(),
     /** 1-based position among the agent's queued messages when `disposition` is `queued`. */
     queuePosition: z.number().int().positive().optional(),
-    /** The send unarchived the agent or loaded it from storage before dispatch. */
+    /**
+     * The send unarchived the agent or loaded it from storage before dispatch. With
+     * `deliveryStatus` queued, the agent was not loaded: the daemon saved the message, answered,
+     * and loads the agent and delivers it after.
+     */
     revived: z.boolean().optional(),
     error: z.string().nullable(),
   }),

@@ -1925,6 +1925,9 @@ export async function createPaseoDaemon(
             providerSnapshotManager.settlePluginProviders();
             restartRecovery.resumePending();
             await wsServer.messageQueue.start({ waitForResume: restartRecovery.waitForResume });
+            void wsServer.deliverAcceptedMessages().catch((error: unknown) => {
+              logger.error({ err: error }, "Failed to deliver accepted messages");
+            });
             await finishSubscriptions.start();
             wsServer.beginAcceptingConnections();
             const relaySecurityLogger = logger.child({ module: "relay-security" });

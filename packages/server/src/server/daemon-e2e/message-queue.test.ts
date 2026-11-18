@@ -164,7 +164,8 @@ test("archiving drops the queue, and a queued send revives the archived agent", 
   await ctx.client.archiveAgent(agent.id);
   expect(await readdir(path.join(ctx.daemon.paseoHome, "agent-message-queue"))).toEqual([]);
 
-  await expect(queue("wake")).resolves.toEqual({ disposition: "turn_started", revived: true });
+  // The archived agent is not loaded: the send is answered once saved and delivered after the load.
+  await expect(queue("wake")).resolves.toEqual({ deliveryStatus: "queued", revived: true });
   await ctx.client.waitForFinish(agent.id, 10_000);
   expect(prompts).toEqual(["work", "wake"]);
   expect((await ctx.client.fetchAgent(agent.id))?.agent.archivedAt).toBeNull();
