@@ -1,6 +1,6 @@
 // YPaseo fork: see YPASEO.md. "Open transcript" opens the focused agent's provider transcript in
 // the owner's editor. The desktop app runs the owner's zsh function for it (see
-// packages/desktop/src/ypaseo-open-transcript.ts). Remote agents use the configured SSH host.
+// packages/desktop/src/ypaseo-open-transcript.ts). Remote agents use a registered Paseo host.
 import { invokeDesktopCommand } from "@/desktop/electron/invoke";
 import {
   collectAllTabs,

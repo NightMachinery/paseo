@@ -132,12 +132,19 @@ async function copyToFile(
 export async function runTranscriptCommand(agentId: string, options: Options): Promise<void> {
   const client = await connectToDaemon({ target: options.daemonTarget });
   const api = createPaseoApi(client);
+  const { destination } = options;
+  let host = destination ?? "The local host";
   try {
-    const destination = options.destination;
-    const target =
-      destination === undefined
-        ? api
-        : await api.hosts.client(resolveTranscriptDestination(await api.hosts.list(), destination));
+    let target = api;
+    if (destination !== undefined) {
+      const directory = await api.hosts.list();
+      const namedHost =
+        directory.self.serverId === destination
+          ? directory.self
+          : directory.hosts.find((entry) => entry.serverId === destination);
+      host = namedHost?.label ?? destination;
+      target = await api.hosts.client(resolveTranscriptDestination(directory, destination));
+    }
     const progress = reportProgress.bind(
       null,
       options.progress === true,
@@ -156,12 +163,14 @@ export async function runTranscriptCommand(agentId: string, options: Options): P
     else await copy(writeStdout);
   } catch (error) {
     if (
-      options.progress &&
       error instanceof Error &&
       "code" in error &&
-      (error.code === "NATIVE_TRANSCRIPT_UNSUPPORTED" || error.code === "unsupported_capability")
+      error.code === "NATIVE_TRANSCRIPT_UNSUPPORTED"
     ) {
-      process.stderr.write("YPASEO-TRANSCRIPT-UNSUPPORTED\n");
+      throw Object.assign(
+        new Error(host + " runs an older daemon without transcript download; update it"),
+        { code: error.code },
+      );
     }
     throw error;
   } finally {

@@ -257,7 +257,7 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   `daemon-e2e/unloaded-agent-requests.test.ts`, `message-receipts/index.test.ts`,
   `providers/claude/agent.history-load.test.ts`. Drop when upstream merges it; until #10026
   merges, a conflict in the send handler keeps the queue branch for agent senders only.
-- **Cmd+Shift+O opens the focused agent's transcript (desktop, local or SSH host).**
+- **Cmd+Shift+O opens the focused agent's transcript (desktop, local or registered host).**
   `packages/app/src/ypaseo/open-transcript*.ts(x)`: the binding (Ctrl+Shift+O off macOS,
   rebindable, listed under General) is spread into `SHORTCUT_BINDINGS` in
   `keyboard/keyboard-shortcuts.ts`, the action id is added to `keyboard/actions.ts`,
@@ -267,8 +267,10 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   Desktop side `packages/desktop/src/ypaseo-open-transcript.ts`, registered in
   `daemon/daemon-manager.ts` as the `ypaseo_open_transcript` command, validates the UUID and
   optional host metadata and passes them as positional arguments to the detached
-  `paseo-view-transcript` shell function. Remote transcripts download through the local daemon when the destination supports it, with SSH as the compatibility fallback. Both routes show progress and support cancellation. The shell function lives in the owner's scripts repository. Upstream's two
-  "old Cmd/Ctrl+Shift+O open-project binding" unit cases are replaced by a comment in
+  `paseo-view-transcript` shell function. Registered-host downloads go through the
+  local daemon, with progress and cancellation. An older destination daemon
+  needs an update. The shell function lives in the owner's scripts repository.
+  Upstream's two "old Cmd/Ctrl+Shift+O open-project binding" unit cases are replaced by a comment in
   `keyboard-shortcuts.test.ts`; on a merge conflict keep them out. Fork-only (a personal
   workflow, not offered upstream); permanent while this fork exists.
 - **Bare commands are spawned from their resolved PATH location.** `spawnProcess`
@@ -295,9 +297,9 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
 - **Native transcript downloads over registered hosts.** The session RPC
   `agent.transcript.read_chunk` reads the main Claude or Codex JSONL from the
   provider's configured home. `paseo agent transcript ID --destination HOST`
-  uses the local daemon's existing host route with no SSH or extra password
-  prompt. Add `-o FILE` to save the transcript or `--progress` for byte progress
-  on stderr. Each request returns at most 1 MiB of decoded data. A download
+  uses the local daemon's authenticated host route. Add `-o FILE` to save the
+  transcript or `--progress` for byte progress on stderr. Each request returns
+  at most 1 MiB of decoded data. A download
   reads up to the initial file size. Appended bytes appear on the next download.
   Replacements and truncation can invalidate a download. Claude sidechains
   are outside the main file. Upstream proposal pending. Drop when upstream

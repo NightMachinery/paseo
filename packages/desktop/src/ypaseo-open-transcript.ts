@@ -1,7 +1,6 @@
-// YPaseo fork: see YPASEO.md. "Open transcript" (Cmd+Shift+O in the app) hands an agent id to
-// the owner's zsh function `paseo-view-transcript`, which finds and converts the provider session
-// locally or over SSH, shows progress, and opens the result in Emacs. IPC values reach the fixed
-// script as positional parameters.
+// YPaseo fork: see YPASEO.md. The desktop passes the focused agent and its host to the
+// shell viewer. It downloads remote transcripts through the local daemon, shows progress,
+// and renders and opens the transcript locally. IPC values are positional shell arguments.
 import type { DesktopCommandHandler } from "./settings/desktop-settings-commands.js";
 import { createEditorTargetRuntime } from "./features/editor-targets/runtime.js";
 import type { EditorTargetRuntime } from "./features/editor-targets/target.js";
