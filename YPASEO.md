@@ -63,6 +63,10 @@ and run the upstream merge automatically are kept outside this repository.
 
 Each entry: what it is, where it lives, upstream link, when to drop it.
 
+- **Background visibility for CLI runs.** `packages/cli/src/commands/agent/run.ts`
+  adds `--background` and `--no-background` for agent visibility. Use
+  `--no-wait` to return immediately. Upstream proposal prepared locally. Drop
+  when upstream ships equivalent CLI visibility controls.
 - **YPaseo app variant (Android).** `app.config.js`, `scripts/build-apk.mjs`,
   `packages/app/ypaseo-version.json`, `packages/app/src/utils/app-version.ts`.
   Separate application id, own Firebase and Expo project, own version shown in
