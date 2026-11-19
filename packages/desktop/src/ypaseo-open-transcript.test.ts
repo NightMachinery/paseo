@@ -31,8 +31,10 @@ function recordingRuntime() {
 
 describe("YPaseo open transcript", () => {
   it("accepts a UUID and normalizes it to lower case", () => {
-    expect(parseOpenTranscriptArgs({ agentId: AGENT_ID })).toBe(AGENT_ID);
-    expect(parseOpenTranscriptArgs({ agentId: AGENT_ID.toUpperCase() })).toBe(AGENT_ID);
+    expect(parseOpenTranscriptArgs({ agentId: AGENT_ID })).toEqual({ agentId: AGENT_ID });
+    expect(parseOpenTranscriptArgs({ agentId: AGENT_ID.toUpperCase() })).toEqual({
+      agentId: AGENT_ID,
+    });
   });
 
   it.each([
@@ -61,6 +63,60 @@ describe("YPaseo open transcript", () => {
       },
     ]);
   });
+
+  it("passes the host label as one argument and includes the server id for alias lookup", async () => {
+    const { launches, runtime } = recordingRuntime();
+    await openAgentTranscript(
+      { agentId: AGENT_ID, host: "MacBook Air", serverId: "srv_example" },
+      runtime,
+    );
+    expect(launches).toEqual([
+      {
+        command: "zsh",
+        args: [
+          "-lic",
+          'paseo_transcript_server_id="${3-}" paseo-view-transcript --host "$2" "$1"',
+          "ypaseo-open-transcript",
+          AGENT_ID,
+          "MacBook Air",
+          "srv_example",
+        ],
+      },
+    ]);
+  });
+
+  it("accepts a host label without a server id", async () => {
+    const { launches, runtime } = recordingRuntime();
+    await openAgentTranscript({ agentId: AGENT_ID, host: "example-host" }, runtime);
+    expect(launches[0]?.args.at(-1)).toBe("example-host");
+  });
+
+  it.each([
+    null,
+    "",
+    "-option",
+    "example@other",
+    "example; printf sentinel",
+    "example\n",
+    "x".repeat(64),
+  ])("rejects invalid host %s before spawning", async (host) => {
+    const { launches, runtime } = recordingRuntime();
+    await expect(openAgentTranscript({ agentId: AGENT_ID, host }, runtime)).rejects.toThrow(
+      /host label/,
+    );
+    expect(launches).toEqual([]);
+  });
+
+  it.each([{ serverId: "srv_example" }, { host: "example", serverId: "srv example" }])(
+    "rejects invalid server id metadata before spawning",
+    async (metadata) => {
+      const { launches, runtime } = recordingRuntime();
+      await expect(
+        openAgentTranscript({ agentId: AGENT_ID, ...metadata }, runtime),
+      ).rejects.toThrow(/server id/);
+      expect(launches).toEqual([]);
+    },
+  );
 
   it("starts the command detached, without output, and without the app's runtime variables", async () => {
     const spawned: { command: string; args: string[]; options: SpawnOptions }[] = [];

@@ -1,38 +1,39 @@
 // YPaseo fork: see YPASEO.md. "Open transcript" opens the focused agent's provider transcript in
 // the owner's editor. The desktop app runs the owner's zsh function for it (see
-// packages/desktop/src/ypaseo-open-transcript.ts), so it works only in the desktop app and only for
-// agents of this computer's own host, where the transcript file lives.
+// packages/desktop/src/ypaseo-open-transcript.ts). Remote agents use the configured SSH host.
 import { invokeDesktopCommand } from "@/desktop/electron/invoke";
 import {
   collectAllTabs,
   findPaneById,
   type WorkspaceLayout,
 } from "@/stores/workspace-layout-actions";
+import type { HostProfile } from "@/types/host-connection";
 import { buildWorkspaceTabPersistenceKey, type WorkspaceTabTarget } from "@/workspace-tabs/model";
 
 /** The desktop command; packages/desktop/src/ypaseo-open-transcript.ts handles it. */
 export const OPEN_TRANSCRIPT_DESKTOP_COMMAND = "ypaseo_open_transcript";
 
-export type OpenTranscriptUnavailableReason =
-  | "not-desktop"
-  | "no-agent"
-  | "no-local-host"
-  | "remote-host";
+export type OpenTranscriptUnavailableReason = "not-desktop" | "no-agent" | "unknown-host";
+
+type OpenTranscriptArgs = { agentId: string } & (
+  | { host?: never; serverId?: never }
+  | { host: string; serverId: string }
+);
 
 export type OpenTranscriptTarget =
-  | { kind: "open"; agentId: string }
+  | ({ kind: "open" } & OpenTranscriptArgs)
   | { kind: "unavailable"; reason: OpenTranscriptUnavailableReason };
 
 // Fork-only text, in English only (YPASEO.md: no locale files).
 export const OPEN_TRANSCRIPT_TEXT = {
   opening: "Opening transcript…",
+  openingFrom: (host: string) => `Opening transcript from ${host}…`,
   failed: "Could not open the transcript",
   outdatedDesktop: "This desktop app cannot open transcripts. Update YPaseo.",
   unavailable: {
     "not-desktop": "Opening a transcript needs the desktop app.",
     "no-agent": "Focus an agent tab to open its transcript.",
-    "no-local-host": "No host runs on this computer, so its transcripts are not here.",
-    "remote-host": "This agent runs on another host. Its transcript is not on this computer.",
+    "unknown-host": "This agent’s host is missing from the host list.",
   } satisfies Record<OpenTranscriptUnavailableReason, string>,
 } as const;
 
@@ -50,12 +51,12 @@ export function focusedWorkspaceTabTarget(
 }
 
 /**
- * What the shortcut acts on: the agent in the active workspace's focused tab, when the app is the
- * desktop app and the workspace's host is the local one.
+ * Resolves the focused agent and, for a remote workspace, its registered host.
  */
 export function resolveOpenTranscriptTarget(input: {
   isDesktop: boolean;
   localServerId: string | null;
+  hosts: readonly Pick<HostProfile, "label" | "serverId">[];
   serverId: string | null;
   focusedTarget: WorkspaceTabTarget | null;
 }): OpenTranscriptTarget {
@@ -63,17 +64,19 @@ export function resolveOpenTranscriptTarget(input: {
   if (input.focusedTarget?.kind !== "agent" || !input.serverId) {
     return { kind: "unavailable", reason: "no-agent" };
   }
-  if (!input.localServerId) return { kind: "unavailable", reason: "no-local-host" };
-  if (input.localServerId !== input.serverId) return { kind: "unavailable", reason: "remote-host" };
-  return { kind: "open", agentId: input.focusedTarget.agentId };
+  const agentId = input.focusedTarget.agentId;
+  if (input.localServerId === input.serverId) return { kind: "open", agentId };
+  const host = input.hosts.find((candidate) => candidate.serverId === input.serverId);
+  if (!host?.label) return { kind: "unavailable", reason: "unknown-host" };
+  return { kind: "open", agentId, host: host.label, serverId: host.serverId };
 }
 
 /** Asks the desktop app to open the transcript; resolves once the viewer has started. */
 export async function requestOpenTranscript(
-  agentId: string,
+  { kind: _kind, ...args }: Extract<OpenTranscriptTarget, { kind: "open" }>,
   invoke: typeof invokeDesktopCommand = invokeDesktopCommand,
 ): Promise<void> {
-  await invoke<void>(OPEN_TRANSCRIPT_DESKTOP_COMMAND, { agentId });
+  await invoke<void>(OPEN_TRANSCRIPT_DESKTOP_COMMAND, args);
 }
 
 /** The toast text for a failed request, without Electron's IPC wrapping. */

@@ -257,17 +257,18 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   `daemon-e2e/unloaded-agent-requests.test.ts`, `message-receipts/index.test.ts`,
   `providers/claude/agent.history-load.test.ts`. Drop when upstream merges it; until #10026
   merges, a conflict in the send handler keeps the queue branch for agent senders only.
-- **Cmd+Shift+O opens the focused agent's transcript (desktop, local host).**
+- **Cmd+Shift+O opens the focused agent's transcript (desktop, local or SSH host).**
   `packages/app/src/ypaseo/open-transcript*.ts(x)`: the binding (Ctrl+Shift+O off macOS,
   rebindable, listed under General) is spread into `SHORTCUT_BINDINGS` in
   `keyboard/keyboard-shortcuts.ts`, the action id is added to `keyboard/actions.ts`,
   `keyboard-action-dispatcher.ts` and `route-shortcut.ts`, and `OpenTranscriptHost` (the handler
   and a command center action) is mounted in `app/_layout.tsx`. It targets the focused tab of the
-  active workspace; another tab, another host or a non-desktop app gets a toast saying why.
+  active workspace and looks up the label and server ID for remote workspaces.
   Desktop side `packages/desktop/src/ypaseo-open-transcript.ts`, registered in
-  `daemon/daemon-manager.ts` as the `ypaseo_open_transcript` command: it accepts only a UUID and
-  runs `zsh -lic 'paseo-view-transcript "$1"'` detached with the id as `$1`. The zsh function
-  (progress, cancel on rerun, Emacs) lives in the owner's scripts repository. Upstream's two
+  `daemon/daemon-manager.ts` as the `ypaseo_open_transcript` command, validates the UUID and
+  optional host metadata and passes them as positional arguments to the detached
+  `paseo-view-transcript` shell function. Remote transcripts are converted over SSH with
+  local progress and cancellation. The shell function lives in the owner's scripts repository. Upstream's two
   "old Cmd/Ctrl+Shift+O open-project binding" unit cases are replaced by a comment in
   `keyboard-shortcuts.test.ts`; on a merge conflict keep them out. Fork-only (a personal
   workflow, not offered upstream); permanent while this fork exists.

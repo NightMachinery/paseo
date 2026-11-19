@@ -14,6 +14,7 @@ import { useKeyboardActionHandler } from "@/hooks/use-keyboard-action-handler";
 import { useKeyboardShortcutOverrides } from "@/hooks/use-keyboard-shortcut-overrides";
 import { usesDesktopBindings } from "@/keyboard";
 import { resolveShortcutKeysForAction } from "@/keyboard/keyboard-shortcuts";
+import { useHosts } from "@/runtime/host-runtime";
 import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
 import { getShortcutOs } from "@/utils/shortcut-platform";
@@ -38,6 +39,7 @@ export function OpenTranscriptHost(): null {
   const toast = useToast();
   const selection = useActiveWorkspaceSelection();
   const localServerId = useLocalDaemonServerId();
+  const hosts = useHosts();
   const isDesktop = isElectronRuntime();
   const { overrides } = useKeyboardShortcutOverrides();
 
@@ -45,6 +47,7 @@ export function OpenTranscriptHost(): null {
     const target = resolveOpenTranscriptTarget({
       isDesktop,
       localServerId,
+      hosts,
       serverId: selection?.serverId ?? null,
       focusedTarget: focusedWorkspaceTabTarget(
         useWorkspaceLayoutStore.getState().layoutByWorkspace,
@@ -58,12 +61,15 @@ export function OpenTranscriptHost(): null {
       });
       return;
     }
-    toast.show(OPEN_TRANSCRIPT_TEXT.opening, { testID: "ypaseo-open-transcript-toast" });
-    void requestOpenTranscript(target.agentId).catch((error: unknown) => {
+    const message = target.host
+      ? OPEN_TRANSCRIPT_TEXT.openingFrom(target.host)
+      : OPEN_TRANSCRIPT_TEXT.opening;
+    toast.show(message, { testID: "ypaseo-open-transcript-toast" });
+    void requestOpenTranscript(target).catch((error: unknown) => {
       console.error("[ypaseo] open transcript failed", error);
       toast.error(describeOpenTranscriptFailure(error));
     });
-  }, [isDesktop, localServerId, selection, toast]);
+  }, [hosts, isDesktop, localServerId, selection, toast]);
 
   useKeyboardActionHandler({
     handlerId: "ypaseo-open-transcript",
