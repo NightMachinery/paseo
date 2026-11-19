@@ -20,14 +20,15 @@ reopens the saved provider conversation and settings, then sends `Resume working
 the prompt with `agents.resumePrompt` or the same settings page.
 Disabling recovery consumes pending intent; enabling it later does not revive old work.
 
-Only agents recorded as running qualify. Idle and initializing agents stay inactive. Archived
+Recovery covers agents with active turns. Idle and initializing agents stay inactive. Archived
 agents or workspaces, private helpers and Hub-owned executions retain their own lifecycle.
 Explicit creation environment overrides are saved with the agent and reapplied when reopening.
 
 Startup chooses candidates before anything else reads or repairs persisted running state, then
 opens connections and resumes every candidate in the background. A provider that is slow to reopen
-holds back only its own agent; a failed reopen is logged. Graceful shutdown records intent before
-closing runtimes.
+holds back only its own agent. The daemon logs each successful dispatch and each failure.
+Graceful shutdown tracks active turns from the start of shutdown, including those interrupted
+while message delivery drains. Turns that finish successfully during shutdown need no resume.
 
 This is best-effort continuation. A crash between saving intent and dispatching a prompt can lose
 or repeat a continuation. Provider resume owns conversation restoration; there is no recovery retry

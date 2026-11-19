@@ -5,7 +5,11 @@ import { join } from "node:path";
 import { afterEach, expect, test } from "vitest";
 
 import { createTestLogger } from "../../test-utils/test-logger.js";
-import { createDaemonAgentMessageQueue, type AgentMessageQueue } from "./agent-message-queue.js";
+import {
+  createAgentMessageQueue,
+  createDaemonAgentMessageQueue,
+  type AgentMessageQueue,
+} from "./agent-message-queue.js";
 import { AgentManager } from "./agent-manager.js";
 import { AgentStorage } from "./agent-storage.js";
 import type {
@@ -170,7 +174,7 @@ test("a message queued during compaction waits for it and never interrupts it", 
   session.pushEvent({ type: "turn_completed", provider: "codex", turnId: "compaction" });
   await expect.poll(() => session.prompts).toEqual(["after compaction"]);
   expect(session.interrupts).toBe(0);
-  expect(queue.list(agent.id)).toEqual([]);
+  await expect.poll(() => queue.list(agent.id)).toEqual([]);
 });
 
 test("persisted messages survive a new queue and start once the agent is idle", async () => {
@@ -205,4 +209,48 @@ test("persisted messages survive a new queue and start once the agent is idle", 
   });
   await expect.poll(() => first.client.sessions[0]!.prompts).toEqual(["one", "two"]);
   await expect.poll(() => readdir(join(first.paseoHome, "agent-message-queue"))).toEqual([]);
+});
+
+test("an idle event during provider reopen cannot drain a persisted queue before restart recovery", async () => {
+  const recovery = Promise.withResolvers<void>();
+  const dispatches: AgentPromptInput[] = [];
+  let notify!: (agentId: string) => void;
+  const queue = createAgentMessageQueue({
+    store: {
+      list: async () =>
+        new Map([
+          [
+            "agent",
+            [{ id: "queued", prompt: "queued", preview: "queued", queuedAt: "2026-01-01" }],
+          ],
+        ]),
+      save: async () => {},
+    },
+    dispatch: async ({ prompt }) => {
+      dispatches.push(prompt);
+      return "turn_started";
+    },
+    isRunning: () => false,
+    hasPendingPermission: () => false,
+    isActive: async () => true,
+    subscribe: (listener) => {
+      notify = listener;
+      return () => {};
+    },
+    publish: () => {},
+    logger: createTestLogger(),
+  });
+  cleanups.push(async () => {
+    recovery.resolve();
+    await queue.close();
+  });
+  await queue.start({ waitForResume: () => recovery.promise });
+  notify("agent"); // Reopening the session publishes idle before sending the recovery prompt.
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  expect(dispatches).toEqual([]);
+  expect(queue.list("agent")).toHaveLength(1);
+
+  recovery.resolve();
+  await expect.poll(() => dispatches).toEqual(["queued"]);
+  await expect.poll(() => queue.list("agent")).toEqual([]);
 });

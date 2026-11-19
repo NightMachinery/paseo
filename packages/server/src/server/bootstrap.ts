@@ -1060,8 +1060,17 @@ export async function createPaseoDaemon(
     }),
     eligible: async (record) =>
       !record.workspaceId || !(await workspaceRegistry?.get(record.workspaceId))?.archivedAt,
-    dispatch: (agentId, prompt) =>
-      sendPromptToAgent({ agentId, prompt, agentManager, agentStorage, logger, unarchive: false }),
+    dispatch: async (agentId, prompt) => {
+      await sendPromptToAgent({
+        agentId,
+        prompt,
+        agentManager,
+        agentStorage,
+        logger,
+        unarchive: false,
+      });
+      logger.info({ agentId }, "Agent restart recovery dispatched");
+    },
     report: (agentId, err) => logger.error({ agentId, err }, "Agent restart recovery failed"),
   });
   await restartRecovery.prepareStartup();
@@ -2004,6 +2013,10 @@ export async function createPaseoDaemon(
   const stop = async (options?: { keepTerminals?: boolean }) => {
     const keepTerminals = options?.keepTerminals === true;
     let terminalShutdownError: unknown = null;
+    // Track interrupted turns from the start of shutdown while allowing already
+    // accepted messages to reopen runtimes until message delivery drains.
+    agentManager.beginShutdownTracking();
+    agentStorage.prepareForShutdown((agentId) => agentManager.hasRunningAgentAtShutdown(agentId));
     localCredential = null;
     await deleteLocalCredential(config.paseoHome);
     // Stop tracking plugin provider registrations before anything tears plugins
@@ -2024,7 +2037,10 @@ export async function createPaseoDaemon(
     await finishSubscriptions.close();
     await wsServer?.agentMessages.close();
     agentManager.prepareForShutdown();
-    await restartRecovery.captureRunningAgents();
+    await restartRecovery.captureRunningAgents(
+      agentManager.getRunningAgentsAtShutdown(),
+      agentManager.getCompletedAgentsAtShutdown(),
+    );
     await closeAllAgents(logger, agentManager);
     await withTimeout({
       promise: pluginRuntime.drainEvents(),
@@ -2033,6 +2049,11 @@ export async function createPaseoDaemon(
     }).catch((error) => logger.warn({ err: error }, "Plugin lifecycle events did not finish"));
     await agentManager.flushForShutdown().catch(() => undefined);
     detachAgentStoragePersistence();
+    await agentStorage.flush().catch(() => undefined);
+    await restartRecovery.captureRunningAgents(
+      agentManager.getRunningAgentsAtShutdown(),
+      agentManager.getCompletedAgentsAtShutdown(),
+    );
     await agentStorage.flush().catch(() => undefined);
     await agentProviderRuntime.shutdown();
     await pluginRuntime.stopAllPlugins();
