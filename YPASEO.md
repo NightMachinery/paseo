@@ -282,3 +282,12 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   `utils/resolve-spawn-command.test.ts`, `utils/spawn.test.ts`. Upstream: issue
   https://github.com/getpaseo/paseo/issues/10240, PR https://github.com/getpaseo/paseo/pull/10241
   (branch `spawn-resolved-path`); drop when it merges.
+- **Restart recovery keeps interrupted turns and queued messages.** Port of upstream PR
+  https://github.com/getpaseo/paseo/pull/9277 (author kept) for issue
+  https://github.com/getpaseo/paseo/issues/9278, adapted to the fork's queue shutdown order:
+  recovery intent is tracked from shutdown entry, so a turn that provider cancellation settles
+  to idle during shutdown is still resumed, and the durable message queue waits behind the
+  recovery turn (also when reopening publishes an idle snapshot). `agent-manager.ts`,
+  `agent-message-queue.ts`, `agent-storage.ts`, `restart-recovery/index.ts`, `bootstrap.ts`, with
+  tests and `daemon-restart-resume.e2e.test.ts`. Used with `agents.resumeOnStartup` so the daemon
+  can be restarted without waiting for idle. Drop when #9277 (or an equivalent fix) merges.
