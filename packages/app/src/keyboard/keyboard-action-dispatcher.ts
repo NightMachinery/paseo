@@ -4,6 +4,7 @@ export type WorkspacePanelTarget = "changes" | "files" | "pull-request";
 export type WorkspacePanelPlacement = "supporting" | "side-pane" | "focused-pane";
 
 export type KeyboardActionId =
+  | "ypaseo.transcript.open" // YPaseo fork: see YPASEO.md.
   | "agent.interrupt"
   | "message-input.focus"
   | "message-input.send"
@@ -58,6 +59,7 @@ export type KeyboardActionId =
   | "workspace.setup.show";
 
 export type KeyboardActionDefinition =
+  | { id: "ypaseo.transcript.open"; scope: KeyboardActionScope } // YPaseo fork
   | { id: "agent.interrupt"; scope: KeyboardActionScope }
   | { id: "message-input.focus"; scope: KeyboardActionScope }
   | { id: "message-input.send"; scope: KeyboardActionScope }

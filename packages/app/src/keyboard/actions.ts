@@ -17,6 +17,7 @@ export type MessageInputKeyboardActionKind =
   | "mode-cycle";
 
 export type KeyboardActionId =
+  | "ypaseo.transcript.open" // YPaseo fork: see YPASEO.md.
   | "agent.interrupt"
   | "agent.new"
   | "workspace.tab.menu.open"

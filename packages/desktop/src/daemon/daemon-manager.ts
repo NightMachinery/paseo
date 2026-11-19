@@ -48,6 +48,7 @@ import {
   type DesktopCommandHandler,
 } from "../settings/desktop-settings-commands.js";
 import type { DesktopSettings } from "../settings/desktop-settings.js";
+import { createOpenTranscriptCommandHandlers } from "../ypaseo-open-transcript.js";
 import { getDesktopSettingsStore } from "../settings/desktop-settings-electron.js";
 import { isRunningUnderARM64Translation } from "../system/arm64-translation.js";
 import { describeSandbox } from "../diagnostics/sandbox.js";
@@ -562,6 +563,7 @@ export function createDaemonCommandHandlers(): Record<string, DesktopCommandHand
     get_cli_install_status: () => getCliInstallStatus(),
     read_legacy_skill_selection: () => readLegacySkillSelection(),
     delete_legacy_skill_selection: () => deleteLegacySkillSelection(),
+    ...createOpenTranscriptCommandHandlers(), // YPaseo fork: see YPASEO.md.
   };
 }
 

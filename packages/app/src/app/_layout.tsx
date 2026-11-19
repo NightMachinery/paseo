@@ -42,6 +42,7 @@ import { CommandCenterWorkspaceActions } from "@/command-center/workspace-regist
 import { PluginCommandCenterActions } from "@/plugins/command-center/registration";
 import { AddProjectFlowHost } from "@/components/add-project-flow-host";
 import { WorktreeSetupCalloutSource } from "@/ypaseo/worktree-setup-callout-source";
+import { OpenTranscriptHost } from "@/ypaseo/open-transcript-host";
 import { DownloadToast } from "@/components/download-toast";
 import { QuittingOverlay } from "@/components/quitting-overlay";
 import { KeyboardShortcutsDialog } from "@/components/keyboard-shortcuts-dialog";
@@ -568,6 +569,7 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
         <CommandCenterWorkspaceActions />
         <PluginCommandCenterActions />
         <WorkspacePinShortcutHandler />
+        <OpenTranscriptHost />
         <WorkspaceRenameHost />
         <WorkspaceArchiveUndoShortcutHost />
         <CommandCenter />

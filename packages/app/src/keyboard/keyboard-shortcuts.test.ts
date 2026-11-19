@@ -458,16 +458,8 @@ describe("keyboard-shortcuts", () => {
       name: "does not keep old Alt+Shift+T binding",
       event: { key: "T", code: "KeyT", altKey: true, shiftKey: true },
     },
-    {
-      name: "does not keep old Cmd+Shift+O open-project binding after rebind to Cmd+O",
-      event: { key: "O", code: "KeyO", metaKey: true, shiftKey: true },
-      context: { isMac: true },
-    },
-    {
-      name: "does not keep old Ctrl+Shift+O open-project binding after rebind to Ctrl+O",
-      event: { key: "O", code: "KeyO", ctrlKey: true, shiftKey: true },
-      context: { isMac: false },
-    },
+    // YPaseo fork: Cmd/Ctrl+Shift+O open the transcript now, so the two "old open-project binding"
+    // cases moved to ypaseo/open-transcript.test.ts. See YPASEO.md.
     {
       name: "does not match question-mark shortcut inside editable scopes",
       event: { key: "?", code: "Slash", shiftKey: true },

@@ -66,6 +66,7 @@ const PASSTHROUGH_DISPATCH: Record<string, KeyboardActionDefinition> = {
   "workspace.pane.move-tab.down": { id: "workspace.pane.move-tab.down", scope: "workspace" },
   "workspace.pane.close": { id: "workspace.pane.close", scope: "workspace" },
   "view.toggle.focus": { id: "workspace.focus.toggle", scope: "workspace" },
+  "ypaseo.transcript.open": { id: "ypaseo.transcript.open", scope: "global" }, // YPaseo fork
 };
 
 const SIMPLE_CALLBACKS: Record<string, ShortcutCallbackName> = {

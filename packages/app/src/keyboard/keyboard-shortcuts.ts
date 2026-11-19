@@ -11,6 +11,7 @@ import {
   type KeyCombo,
   parseChordString,
 } from "@/keyboard/shortcut-string";
+import { OPEN_TRANSCRIPT_BINDINGS } from "@/ypaseo/open-transcript-shortcut";
 
 export type { KeyCombo } from "@/keyboard/shortcut-string";
 
@@ -160,6 +161,7 @@ export const SHORTCUT_HELP_ROW_ORDER: Record<ShortcutSectionId, readonly string[
     "show-shortcuts",
     "toggle-settings",
     "cycle-theme",
+    "ypaseo-open-transcript", // YPaseo fork: see YPASEO.md.
   ],
   workspaces: [
     "new-agent",
@@ -1246,6 +1248,8 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
       label: "Mute/unmute voice mode",
     },
   },
+
+  ...OPEN_TRANSCRIPT_BINDINGS, // YPaseo fork: see YPASEO.md.
 ];
 
 // --- Parse bindings at module load ---
