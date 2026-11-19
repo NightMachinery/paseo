@@ -207,6 +207,10 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   merges cleanly. Unit test `workspace-header-menu.test.tsx`, browser test
   `packages/app/e2e/browser/workspace-header-pin.spec.ts`. Upstream PR #9697 (branch
   `workspace-header-pin`; related Discussion #8644); drop when upstream merges it.
+- **Pinned workspace order follows the host across clients.** Workspace ranks
+  in the daemon registry flow through existing workspace updates to the sidebar.
+  Older daemons use the device order. Upstream draft on branch
+  `sync-pinned-order`; drop when upstream ships it.
 - **Agent messages wait for the running turn to end.** Upstream #9757, cherry-picked from
   `origin/main` (41c294c78) because no release tag contains it yet:
   `packages/server/src/server/agent/agent-messages/delivery.ts` holds agent-originated
