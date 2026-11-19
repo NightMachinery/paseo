@@ -1,3 +1,4 @@
+import type { NativeTranscriptChunk, NativeTranscriptRead } from "@getpaseo/protocol/messages";
 import {
   DiffStreamRouter,
   DiffSubscriptionError,
@@ -3376,6 +3377,21 @@ export class DaemonClient {
     return this.sendNamespacedCorrelatedSessionRequest<"workspace.setup.run.response">({
       requestId,
       message: { type: "workspace.setup.run.request", workspaceId },
+    });
+  }
+
+  async readNativeTranscript(input: NativeTranscriptRead): Promise<NativeTranscriptChunk> {
+    if (this.getLastServerInfoMessage()?.features?.nativeTranscript !== true) {
+      throw Object.assign(
+        new Error("The destination daemon does not support native transcript downloads"),
+        {
+          code: "NATIVE_TRANSCRIPT_UNSUPPORTED",
+        },
+      );
+    }
+    return this.sendNamespacedCorrelatedSessionRequest<"agent.transcript.read_chunk.response">({
+      message: { ...input, type: "agent.transcript.read_chunk.request" },
+      timeout: 60_000,
     });
   }
 

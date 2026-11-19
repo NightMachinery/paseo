@@ -1,3 +1,5 @@
+import { resolveClaudeNativeTranscript } from "../../native-transcript-source.js";
+import type { NativeTranscriptAgent } from "../../agent-sdk-types.js";
 import { setImmediate } from "node:timers/promises";
 import { ClaudeRuntimeSafety } from "./runtime-safety.js";
 import type { ProviderOptions } from "@getpaseo/protocol/agent-types";
@@ -1764,6 +1766,13 @@ export class ClaudeAgentClient implements AgentClient {
 
   async resolveDefaultModeId({ env: launchEnv }: ResolveAgentDefaultModeInput): Promise<string> {
     return claudeModeCatalog(this.buildProviderEnv(launchEnv)).defaultModeId;
+  }
+
+  resolveNativeTranscript(agent: NativeTranscriptAgent) {
+    return resolveClaudeNativeTranscript(
+      agent,
+      claudeConfigDir(this.buildProviderEnv(agent.launchEnv)),
+    );
   }
 
   private buildProviderEnv(launchEnv?: Record<string, string>): NodeJS.ProcessEnv {

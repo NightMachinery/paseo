@@ -804,6 +804,19 @@ export interface AgentDraftControls {
   options: ProviderOptions;
 }
 
+export interface NativeTranscriptSource {
+  provider: "claude" | "codex";
+  root: string;
+  file: string;
+}
+
+export interface NativeTranscriptAgent {
+  cwd: string;
+  persistence?: AgentPersistenceHandle | null;
+  runtimeInfo?: Pick<AgentRuntimeInfo, "sessionId">;
+  launchEnv?: Record<string, string>;
+}
+
 export interface AgentClient {
   readonly provider: AgentProvider;
   readonly capabilities: AgentCapabilityFlags;
@@ -854,6 +867,7 @@ export interface AgentClient {
   listControls?(config: AgentSessionConfig): Promise<AgentDraftControls>;
   /** Effective options: provider defaults from `config.json` deep-merged with the agent's own. */
   effectiveOptions?(own: ProviderOptions | undefined): ProviderOptions;
+  resolveNativeTranscript?(agent: NativeTranscriptAgent): Promise<NativeTranscriptSource>;
   listImportableSessions?(
     options?: ListImportableSessionsOptions,
   ): Promise<ImportableProviderSession[]>;

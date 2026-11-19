@@ -15,9 +15,11 @@ import { addImportOptions, runImportCommand } from "./import.js";
 import { runUpdateCommand } from "./update.js";
 import { runDetachCommand } from "./detach.js";
 import { addOpenOptions, runOpenCommand } from "./open.js";
+import { addTranscriptOptions, runTranscriptCommand } from "./transcript.js";
 import { withOutput } from "../../output/index.js";
 import {
   addDaemonHostOption,
+  addLocalDaemonOptions,
   addJsonAndDaemonHostOptions,
   collectMultiple,
   withGlobalOptions,
@@ -39,6 +41,10 @@ export function createAgentCommand(): Command {
 
   addDaemonHostOption(addAttachOptions(agent.command("attach"))).action(
     withGlobalOptions(runAttachCommand),
+  );
+
+  addLocalDaemonOptions(addTranscriptOptions(agent.command("transcript"))).action(
+    withGlobalOptions(runTranscriptCommand),
   );
 
   addDaemonHostOption(addLogsOptions(agent.command("logs"))).action(

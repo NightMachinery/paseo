@@ -1436,6 +1436,11 @@ export class AgentManager {
     return agent?.session?.usageSession?.() ?? null;
   }
 
+  nativeTranscriptResolver(provider: string) {
+    const client = this.clients.get(provider);
+    return client?.resolveNativeTranscript?.bind(client);
+  }
+
   getAgent(id: string): ManagedAgent | null {
     const agent = this.agents.get(id);
     return agent ? { ...agent } : null;

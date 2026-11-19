@@ -1,3 +1,5 @@
+import { resolveCodexNativeTranscript } from "../native-transcript-source.js";
+import type { NativeTranscriptAgent } from "../agent-sdk-types.js";
 import type { ProviderOptions } from "@getpaseo/protocol/agent-types";
 import { applyProviderOptionsPatch } from "../option-controls.js";
 import { assertChangesAreLive, validateProviderOptions } from "../provider-options.js";
@@ -7919,6 +7921,13 @@ export class CodexAppServerAgentClient implements AgentClient {
     private readonly runtimeSettings?: ProviderRuntimeSettings,
     private readonly deps: CodexAppServerAgentDeps = {},
   ) {}
+
+  resolveNativeTranscript(agent: NativeTranscriptAgent) {
+    return resolveCodexNativeTranscript(
+      agent,
+      resolveCodexHomeDir(buildCodexAppServerEnv(this.runtimeSettings, agent.launchEnv)),
+    );
+  }
 
   private sessionDeps(launchEnv: Record<string, string> | undefined): CodexAppServerAgentDeps {
     return {

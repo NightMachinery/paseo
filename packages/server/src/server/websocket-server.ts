@@ -2142,6 +2142,7 @@ export class VoiceAssistantWebSocketServer {
         terminalCollection: true,
         // COMPAT(workspaceSetupRun): added in v0.7.3, remove gate after 2027-09-02.
         workspaceSetupRun: true,
+        nativeTranscript: true,
         workspaceSetupObservation: true,
         workspaceSortTimes: true,
         // COMPAT(providersSnapshot): keep optional until all clients rely on snapshot flow.

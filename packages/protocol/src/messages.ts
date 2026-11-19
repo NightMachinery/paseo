@@ -1517,6 +1517,22 @@ export const FetchRecentProviderSessionsRequestMessageSchema = z.object({
   query: z.string().optional(),
 });
 
+export const MAX_NATIVE_TRANSCRIPT_CHUNK_BYTES = 1024 * 1024;
+
+const AgentReadNativeTranscriptRequestSchema = z.object({
+  type: z.literal("agent.transcript.read_chunk.request"),
+  requestId: z.string(),
+  agentId: z.string().min(1),
+  offset: z.number().int().nonnegative(),
+  maxBytes: z.number().int().positive().max(MAX_NATIVE_TRANSCRIPT_CHUNK_BYTES),
+  snapshotId: z.string().uuid().optional(),
+});
+
+export type NativeTranscriptRead = Omit<
+  z.infer<typeof AgentReadNativeTranscriptRequestSchema>,
+  "type" | "requestId"
+>;
+
 export const FetchAgentRequestMessageSchema = z.object({
   type: z.literal("fetch_agent_request"),
   requestId: z.string(),
@@ -3567,6 +3583,7 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   FetchWorkspacesRequestMessageSchema,
   ProjectListRequestMessageSchema,
   ProjectSuggestionsRequestSchema,
+  AgentReadNativeTranscriptRequestSchema,
   FetchAgentRequestMessageSchema,
   DeleteAgentRequestMessageSchema,
   ArchiveAgentRequestMessageSchema,
@@ -4148,6 +4165,7 @@ export const ServerInfoStatusPayloadSchema = z
         entityMetadata: z.boolean().optional(),
         diffSubscription: z.boolean().optional(),
         binaryChunkingV1: z.boolean().optional(),
+        nativeTranscript: z.boolean().optional(),
         workspaceSetupObservation: z.boolean().optional(),
         workspaceSortTimes: z.boolean().optional(),
         // COMPAT(canonicalSubmittedPrompts): added in v0.2.6, remove gate after 2027-01-30.
@@ -5082,6 +5100,26 @@ export const ArchiveWorkspaceResponseMessageSchema = z.object({
     canceled: z.boolean().optional(),
   }),
 });
+
+const AgentReadNativeTranscriptResponseSchema = z.object({
+  type: z.literal("agent.transcript.read_chunk.response"),
+  payload: z.object({
+    requestId: z.string(),
+    snapshotId: z.string().uuid(),
+    provider: z.enum(["claude", "codex"]),
+    fileName: z.string(),
+    size: z.number().int().nonnegative(),
+    mtimeMs: z.number(),
+    offset: z.number().int().nonnegative(),
+    data: z.string(),
+    eof: z.boolean(),
+  }),
+});
+
+export type NativeTranscriptChunk = Omit<
+  z.infer<typeof AgentReadNativeTranscriptResponseSchema>["payload"],
+  "requestId"
+>;
 
 export const FetchAgentResponseMessageSchema = z.object({
   type: z.literal("fetch_agent_response"),
@@ -7564,6 +7602,7 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   LegacyListAvailableEditorsResponseMessageSchema,
   LegacyOpenInEditorResponseMessageSchema,
   ArchiveWorkspaceResponseMessageSchema,
+  AgentReadNativeTranscriptResponseSchema,
   FetchAgentResponseMessageSchema,
   FetchAgentTimelineResponseMessageSchema,
   AgentTimelineReplacementMessageSchema,
