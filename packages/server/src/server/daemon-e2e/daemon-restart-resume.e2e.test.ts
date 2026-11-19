@@ -1,6 +1,6 @@
 import { AgentStorage } from "../agent/agent-storage.js";
 import { createTestLogger } from "../../test-utils/test-logger.js";
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -75,6 +75,9 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { DaemonClient } from "../test-utils/daemon-client.js";
+import { createTestPaseoDaemon } from "../test-utils/paseo-daemon.js";
+import { createTestAgentClients } from "../test-utils/fake-agent-client.js";
+import { VoiceAssistantWebSocketServer } from "../websocket-server.js";
 
 async function restartFixture(
   root: string,
@@ -359,3 +362,64 @@ test("a provider that is slow to reopen does not hold daemon startup", async () 
     await rm(root, { recursive: true, force: true });
   }
 }, 30000);
+
+test("recovers a turn interrupted by provider teardown while the daemon drains messages", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "restart-drain-"));
+  const held = Promise.withResolvers<void>();
+  const prompt = "Continue the interrupted turn.";
+  const delivered: unknown[] = [];
+  const start = () =>
+    createTestPaseoDaemon({
+      paseoHomeRoot: root,
+      staticDir: root,
+      cleanup: false,
+      resumeOnStartup: true,
+      resumePrompt: prompt,
+      agentClients: createTestAgentClients({
+        beforeTurnComplete: (input) => (input === "hold" ? held.promise : Promise.resolve()),
+        onStartTurn: (input) => delivered.push(input),
+      }),
+    });
+  const prepare = VoiceAssistantWebSocketServer.prototype.prepareForShutdown;
+  let fixture: Awaited<ReturnType<typeof start>> | undefined;
+  let client: DaemonClient | undefined;
+  try {
+    fixture = await start();
+    const first = fixture;
+    client = new DaemonClient({ url: `ws://127.0.0.1:${first.port}/ws`, appVersion: "0.16.2" });
+    await client.connect();
+    const agent = await client.createAgent({
+      provider: "claude",
+      cwd: root,
+      modeId: "full-access",
+    });
+    await client.sendMessage(agent.id, "hold");
+    const readStatus = async () => (await first.daemon.agentStorage.get(agent.id))?.lastStatus;
+    await expect.poll(readStatus).toBe("running");
+    vi.spyOn(VoiceAssistantWebSocketServer.prototype, "prepareForShutdown").mockImplementationOnce(
+      function (this: VoiceAssistantWebSocketServer) {
+        prepare.call(this);
+        const close = this.agentMessages.close.bind(this.agentMessages);
+        vi.spyOn(this.agentMessages, "close").mockImplementationOnce(async () => {
+          await close();
+          // A provider loses the active turn before shutdown reaches persisted capture.
+          await first.daemon.agentManager.cancelAgentRun(agent.id);
+          await expect.poll(readStatus).toBe("idle");
+        });
+      },
+    );
+    await client.close();
+    client = undefined;
+    await first.close();
+    fixture = undefined;
+    expect((await first.daemon.agentStorage.get(agent.id))?.resumeOnStartup).toBe(true);
+    fixture = await start();
+    await expect.poll(() => delivered.filter((input) => input === prompt)).toEqual([prompt]);
+  } finally {
+    vi.restoreAllMocks();
+    held.resolve();
+    await client?.close();
+    await fixture?.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});

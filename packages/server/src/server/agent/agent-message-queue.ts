@@ -162,6 +162,7 @@ export function createAgentMessageQueue(deps: Dependencies): AgentMessageQueue {
   const drainWaiters = new Map<string, Set<() => void>>();
   const lifetime = new AbortController();
   let loaded: Promise<void> | undefined;
+  let waitForStartupResume: ((agentId: string, signal: AbortSignal) => Promise<void>) | undefined;
   let closed = false;
 
   /** Every mutation of one agent's queue runs in order, one at a time. */
@@ -195,9 +196,13 @@ export function createAgentMessageQueue(deps: Dependencies): AgentMessageQueue {
   function scheduleDrain(agentId: string): void {
     if (closed || !queues.has(agentId) || deps.isRunning(agentId)) return;
     defer(() => {
-      void lane(agentId, () => drain(agentId)).catch((error) =>
-        deps.logger.error({ err: error, agentId }, "Queued message delivery failed"),
-      );
+      // Provider reopen can publish an idle snapshot before its recovery turn starts.
+      // Gate both startup drains and drains triggered by that state change.
+      void (waitForStartupResume?.(agentId, lifetime.signal) ?? Promise.resolve())
+        .then(() => lane(agentId, () => drain(agentId)))
+        .catch((error) => {
+          if (!closed) deps.logger.error({ err: error, agentId }, "Queued message delivery failed");
+        });
     });
   }
 
@@ -257,12 +262,9 @@ export function createAgentMessageQueue(deps: Dependencies): AgentMessageQueue {
 
   return {
     async start(options) {
+      waitForStartupResume = options?.waitForResume;
       await ensureLoaded();
-      for (const agentId of queues.keys()) {
-        void (options?.waitForResume?.(agentId, lifetime.signal) ?? Promise.resolve())
-          .then(() => scheduleDrain(agentId))
-          .catch(() => undefined);
-      }
+      for (const agentId of queues.keys()) scheduleDrain(agentId);
     },
 
     async submit(input) {
