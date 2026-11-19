@@ -262,3 +262,13 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   "old Cmd/Ctrl+Shift+O open-project binding" unit cases are replaced by a comment in
   `keyboard-shortcuts.test.ts`; on a merge conflict keep them out. Fork-only (a personal
   workflow, not offered upstream); permanent while this fork exists.
+- **Bare commands are spawned from their resolved PATH location.** `spawnProcess`
+  (`packages/server/src/utils/spawn.ts`) resolves a bare command name through PATH with
+  `utils/resolve-spawn-command.ts` (all directories checked at once, cached for 10 s) and spawns
+  the absolute path, keeping argv[0]. On macOS libuv otherwise calls `posix_spawn` once per PATH
+  directory until one succeeds, on the event loop: with a long PATH (401 entries here, git near the
+  end) every `git` the workspace watchers start blocked the loop 27 to 136 ms, which held the
+  daemon's event-loop delay near 170 ms and made unloaded agents take minutes to load. Measured on
+  an isolated daemon: median delay 144 ms to 11 ms. Daemon code. Tests
+  `utils/resolve-spawn-command.test.ts`, `utils/spawn.test.ts`. Written for upstream (branch
+  `loop-delay-git-path`, not yet offered); drop when upstream spawns by absolute path.
