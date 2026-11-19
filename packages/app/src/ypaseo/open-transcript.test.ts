@@ -19,6 +19,8 @@ import {
 import { OPEN_TRANSCRIPT_ACTION, OPEN_TRANSCRIPT_HELP_ID } from "./open-transcript-shortcut";
 
 const LOCAL = "srv-local";
+const REMOTE = "srv-remote";
+const hosts = [{ serverId: REMOTE, label: "MacBook Air" }];
 const AGENT_ID = "0f8fad5b-d9cb-469f-a165-70867728950e";
 const agentTab: WorkspaceTabTarget = { kind: "agent", agentId: AGENT_ID };
 
@@ -26,6 +28,7 @@ function resolve(overrides: Partial<Parameters<typeof resolveOpenTranscriptTarge
   return resolveOpenTranscriptTarget({
     isDesktop: true,
     localServerId: LOCAL,
+    hosts,
     serverId: LOCAL,
     focusedTarget: agentTab,
     ...overrides,
@@ -50,17 +53,19 @@ describe("open transcript target", () => {
     expect(resolve()).toEqual({ kind: "open", agentId: AGENT_ID });
   });
 
-  it("refuses an agent of another host", () => {
-    expect(resolve({ serverId: "srv-remote" })).toEqual({
-      kind: "unavailable",
-      reason: "remote-host",
+  it.each([LOCAL, null])("resolves a registered remote host with local id %s", (localServerId) => {
+    expect(resolve({ serverId: REMOTE, localServerId })).toEqual({
+      kind: "open",
+      agentId: AGENT_ID,
+      host: "MacBook Air",
+      serverId: REMOTE,
     });
   });
 
-  it("refuses when no host runs on this computer", () => {
-    expect(resolve({ localServerId: null })).toEqual({
+  it("explains a missing registry entry for a remote host", () => {
+    expect(resolve({ serverId: "srv-unknown" })).toEqual({
       kind: "unavailable",
-      reason: "no-local-host",
+      reason: "unknown-host",
     });
   });
 
@@ -147,8 +152,23 @@ describe("focused workspace tab", () => {
 describe("open transcript request", () => {
   it("sends only the agent id to the fork's desktop command", async () => {
     const invoke = vi.fn(async () => undefined);
-    await requestOpenTranscript(AGENT_ID, invoke as never);
+    await requestOpenTranscript({ kind: "open", agentId: AGENT_ID }, invoke as never);
     expect(invoke).toHaveBeenCalledWith(OPEN_TRANSCRIPT_DESKTOP_COMMAND, { agentId: AGENT_ID });
+  });
+
+  it("sends the remote label and server id to the desktop command", async () => {
+    const invoke = vi.fn(async () => undefined);
+    const target = resolve({ serverId: REMOTE });
+    if (target.kind !== "open") throw new Error("Expected to open the transcript");
+    await requestOpenTranscript(target, invoke as never);
+    expect(invoke).toHaveBeenCalledWith(OPEN_TRANSCRIPT_DESKTOP_COMMAND, {
+      agentId: AGENT_ID,
+      host: "MacBook Air",
+      serverId: REMOTE,
+    });
+    expect(OPEN_TRANSCRIPT_TEXT.openingFrom("MacBook Air")).toBe(
+      "Opening transcript from MacBook Air…",
+    );
   });
 
   it("strips Electron's IPC wrapping from a failure", () => {
