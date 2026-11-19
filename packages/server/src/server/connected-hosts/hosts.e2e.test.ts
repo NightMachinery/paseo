@@ -1,3 +1,6 @@
+import { randomBytes } from "node:crypto";
+import { MAX_NATIVE_TRANSCRIPT_CHUNK_BYTES as CHUNK_BYTES } from "@getpaseo/protocol/messages";
+import { resolveClaudeNativeTranscript } from "../agent/native-transcript-source.js";
 import { z } from "zod";
 import pino from "pino";
 import { createTestAgentClients } from "../test-utils/fake-agent-client.js";
@@ -2720,3 +2723,81 @@ test.each([false, true])(
       .toEqual([]);
   },
 );
+
+test("downloads a byte-identical native transcript through a registered daemon route", async () => {
+  const agentId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const unsupportedId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const nativeId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  const clients = createTestAgentClients();
+  let configDir: string;
+  clients.claude.resolveNativeTranscript = (agent) =>
+    resolveClaudeNativeTranscript(agent, configDir);
+  const destination = await daemon({
+    agentClients: clients,
+    auth: { password: hashSync("fixture-password", 4) },
+  });
+  configDir = join(destination.paseoHome, "synthetic-claude");
+  const file = join(configDir, "projects", "example", nativeId + ".jsonl");
+  const line = JSON.stringify({
+    type: "user",
+    message: { role: "user", content: randomBytes(CHUNK_BYTES).toString("hex") },
+  });
+  const data = Buffer.from(line + "\n" + line + "\n");
+  await mkdir(dirname(file), { recursive: true });
+  await writeFile(file, data);
+  const now = new Date().toISOString();
+  for (const [id, provider] of [
+    [agentId, "claude"],
+    [unsupportedId, "opencode"],
+  ] as const) {
+    await destination.daemon.agentStorage.upsert({
+      id,
+      provider,
+      cwd: destination.staticDir,
+      title: "Synthetic transcript",
+      createdAt: now,
+      updatedAt: now,
+      labels: {},
+      metadata: {},
+      lastStatus: "closed",
+      persistence: { provider, sessionId: nativeId },
+    });
+  }
+
+  const managing = await daemon();
+  const { paseo } = await api(managing);
+  await paseo.hosts.add({
+    connection: "tcp://127.0.0.1:" + destination.port + "?password=fixture-password",
+    label: "Example Host",
+  });
+  const directory = await online(paseo);
+  const serverId = destination.daemon.getServerId();
+  expect(directory.hosts[0]?.serverId).toBe(serverId);
+  const remote = await paseo.hosts.client(serverId);
+  const request = { agentId, offset: 0, maxBytes: CHUNK_BYTES };
+  await expect(
+    remote.agents.readNativeTranscript({ ...request, agentId: "../example" }),
+  ).rejects.toThrow(/Agent not found/);
+  await expect(
+    remote.agents.readNativeTranscript({ ...request, agentId: unsupportedId }),
+  ).rejects.toThrow(/Provider does not support native transcript downloads: opencode/);
+  const buffers: Buffer[] = [];
+  let snapshotId: string | undefined;
+  let offset = 0;
+  do {
+    const read = await remote.agents.readNativeTranscript({ ...request, offset, snapshotId });
+    expect(read).toMatchObject({
+      provider: "claude",
+      fileName: nativeId + ".jsonl",
+      size: data.length,
+      offset,
+    });
+    const bytes = Buffer.from(read.data, "base64");
+    expect(bytes.length).toBe(Math.min(CHUNK_BYTES, data.length - offset));
+    buffers.push(bytes);
+    offset += bytes.length;
+    snapshotId = read.snapshotId;
+    expect(read.eof).toBe(offset === data.length);
+  } while (offset < data.length);
+  expect(Buffer.concat(buffers).equals(data)).toBe(true);
+});

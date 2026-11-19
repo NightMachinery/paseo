@@ -580,6 +580,7 @@ function wrapClientProvider(
             providerOptions: withDefaults(config.providerOptions),
           })
       : undefined,
+    resolveNativeTranscript: inner.resolveNativeTranscript?.bind(inner),
     listImportableSessions: listImportableSessions
       ? async (options) =>
           await listImportableSessions({ ...options, providerOptions: configuredDefaults() })

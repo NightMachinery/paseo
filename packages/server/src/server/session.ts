@@ -1,3 +1,4 @@
+import { NativeTranscriptError, NativeTranscriptSnapshots } from "./agent/native-transcript.js";
 import { DiffSession } from "./diff/index.js";
 import { type WorkspaceRuntimeStore } from "./workspace-runtime-store/index.js";
 import type { AgentMessageDelivery } from "./agent/agent-messages/index.js";
@@ -872,6 +873,7 @@ export class Session {
   private readonly terminalController: TerminalSessionController;
   private inflightRequests = 0;
   private peakInflightRequests = 0;
+  private readonly nativeTranscripts = new WeakMap<object, NativeTranscriptSnapshots>();
   private readonly workspaceSetupObservation: WorkspaceSetupObservation;
   private readonly unsubscribeSetupObservation: () => void;
   private readonly workspaceSetupRuntime: WorkspaceSetupRuntime;
@@ -2669,6 +2671,8 @@ export class Session {
     msg: SessionInboundMessage,
     source?: object,
   ): Promise<void> | undefined {
+    if (msg.type === "agent.transcript.read_chunk.request")
+      return this.handleReadNativeTranscript(msg, source ?? this);
     return (
       this.dispatchAgentRewindMessage(msg, source) ??
       this.dispatchAgentRelationshipMessage(msg) ??
@@ -8430,6 +8434,68 @@ export class Session {
         },
       });
     }
+  }
+
+  private async handleReadNativeTranscript(
+    request: Extract<SessionInboundMessage, { type: "agent.transcript.read_chunk.request" }>,
+    source: object,
+  ): Promise<void> {
+    let snapshots = this.nativeTranscripts.get(source);
+    if (!snapshots) {
+      snapshots = new NativeTranscriptSnapshots();
+      this.nativeTranscripts.set(source, snapshots);
+    }
+    const result = await snapshots
+      .read(request, async () => {
+        const resolved = await this.resolveAgentIdentifier(request.agentId);
+        if (!resolved.ok) throw new SessionRequestError("AGENT_NOT_FOUND", resolved.error);
+        const { agentId } = resolved;
+        const live = this.agentManager.getAgent(agentId);
+        const record = live
+          ? {
+              provider: live.config.provider,
+              cwd: live.config.cwd,
+              persistence: live.persistence,
+              runtimeInfo: live.runtimeInfo,
+              launchEnv: live.launchEnv,
+              internal: live.internal,
+            }
+          : await this.agentStorage.get(agentId);
+        if (!record || record.internal || !this.isProviderVisibleToClient(record.provider)) {
+          throw new SessionRequestError("AGENT_NOT_FOUND", "Agent not found");
+        }
+        const { provider } = record;
+        const lookup = this.agentManager.nativeTranscriptResolver(provider);
+        if (!lookup) {
+          throw new SessionRequestError(
+            "TRANSCRIPT_PROVIDER_UNSUPPORTED",
+            "Provider does not support native transcript downloads: " + provider,
+          );
+        }
+        return lookup(record);
+      })
+      .catch((error: unknown) => {
+        // Avoid reporting filesystem errors that contain server-local paths.
+        const message =
+          error instanceof SessionRequestError || error instanceof NativeTranscriptError
+            ? error.message
+            : "Could not read the native transcript file";
+        this.emit({
+          type: "rpc_error",
+          payload: {
+            requestId: request.requestId,
+            requestType: request.type,
+            error: message,
+            code: error instanceof SessionRequestError ? error.code : "TRANSCRIPT_UNAVAILABLE",
+          },
+        });
+        return null;
+      });
+    if (!result) return;
+    this.emit({
+      type: "agent.transcript.read_chunk.response",
+      payload: { requestId: request.requestId, ...result },
+    });
   }
 
   private async handleFetchAgent(agentIdOrIdentifier: string, requestId: string): Promise<void> {

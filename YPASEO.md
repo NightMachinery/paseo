@@ -267,8 +267,7 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   Desktop side `packages/desktop/src/ypaseo-open-transcript.ts`, registered in
   `daemon/daemon-manager.ts` as the `ypaseo_open_transcript` command, validates the UUID and
   optional host metadata and passes them as positional arguments to the detached
-  `paseo-view-transcript` shell function. Remote transcripts are converted over SSH with
-  local progress and cancellation. The shell function lives in the owner's scripts repository. Upstream's two
+  `paseo-view-transcript` shell function. Remote transcripts download through the local daemon when the destination supports it, with SSH as the compatibility fallback. Both routes show progress and support cancellation. The shell function lives in the owner's scripts repository. Upstream's two
   "old Cmd/Ctrl+Shift+O open-project binding" unit cases are replaced by a comment in
   `keyboard-shortcuts.test.ts`; on a merge conflict keep them out. Fork-only (a personal
   workflow, not offered upstream); permanent while this fork exists.
@@ -292,3 +291,14 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   `agent-message-queue.ts`, `agent-storage.ts`, `restart-recovery/index.ts`, `bootstrap.ts`, with
   tests and `daemon-restart-resume.e2e.test.ts`. Used with `agents.resumeOnStartup` so the daemon
   can be restarted without waiting for idle. Drop when #9277 (or an equivalent fix) merges.
+
+- **Native transcript downloads over registered hosts.** The session RPC
+  `agent.transcript.read_chunk` reads the main Claude or Codex JSONL from the
+  provider's configured home. `paseo agent transcript ID --destination HOST`
+  uses the local daemon's existing host route with no SSH or extra password
+  prompt. Add `-o FILE` to save the transcript or `--progress` for byte progress
+  on stderr. Each request returns at most 1 MiB of decoded data. A download
+  reads up to the initial file size. Appended bytes appear on the next download.
+  Replacements and truncation can invalidate a download. Claude sidechains
+  are outside the main file. Upstream proposal pending. Drop when upstream
+  offers equivalent native transcript downloads.

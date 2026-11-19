@@ -1,3 +1,4 @@
+import type { NativeTranscriptChunk, NativeTranscriptRead } from "@getpaseo/protocol/messages";
 import { workspaceLabelKey } from "@getpaseo/protocol/workspace-labels";
 export type { TerminalReplayEvent, TerminalStreamEvent } from "./terminal-stream-router.js";
 import type { AgentAddress } from "@getpaseo/protocol/addresses";
@@ -470,6 +471,7 @@ export interface PaseoAgentHandle {
 }
 
 export interface PaseoAgentActions {
+  readNativeTranscript(input: NativeTranscriptRead): Promise<NativeTranscriptChunk>;
   list(options: PaseoAgentListOptions & { subscribe: {} }): Promise<
     PaseoAgentListResult & {
       subscriptionId: string;
@@ -865,6 +867,7 @@ export function createPaseoApi(
       subscribe: listenWorkspaces,
     },
     agents: {
+      readNativeTranscript: (input) => daemonClient.readNativeTranscript(input),
       list: listAgents,
       ref: (agent) => createAgentHandle(agent),
       create: (options) => createAgent(options),
