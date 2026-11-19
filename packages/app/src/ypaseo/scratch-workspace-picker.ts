@@ -7,6 +7,7 @@ import type { ComboboxOption } from "@/components/ui/combobox";
 import { useToast } from "@/contexts/toast-context";
 import { registerProjectDescriptor } from "@/hooks/open-project";
 import type { HostProjectListItem } from "@/projects/host-projects";
+import { i18n } from "@/i18n/i18next";
 import { useHostFeature } from "@/runtime/host-features";
 import { getHostRuntimeStore } from "@/runtime/host-runtime";
 import { useNewWorkspaceProjectPicker } from "@/screens/new-workspace/project-picker";
@@ -96,7 +97,7 @@ export function useYpaseoNewWorkspaceProjectPicker(
     }
     const client = getHostRuntimeStore().getClient(selectedServerId);
     if (!client?.isConnected) {
-      throw new Error("Host is not connected");
+      throw new Error(i18n.t("workspaceSetup.errors.hostDisconnected"));
     }
     const created = await createScratchProject({ client, serverId: selectedServerId });
     registerProjectDescriptor({
