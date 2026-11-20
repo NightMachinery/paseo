@@ -14,6 +14,7 @@ import android.media.audiofx.NoiseSuppressor
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import androidx.annotation.RequiresApi
 import java.util.LinkedList
@@ -40,11 +41,22 @@ class AudioEngine (context: Context) {
     private var captureMode = CaptureMode.CONVERSATION
     private val mainHandler = Handler(Looper.getMainLooper())
     @Volatile private var captureSilenced = false
+    @Volatile private var captureRequestedAtMs = 0L
+    @Volatile private var captureStartedAtMs = 0L
+    private val recordRoutingListener = android.media.AudioRouting.OnRoutingChangedListener { routing ->
+        Log.i("AudioEngine", "input route=${routing.routedDevice.description()} ${captureTiming()}")
+    }
+    private val communicationDeviceListener = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        AudioManager.OnCommunicationDeviceChangedListener { device ->
+            Log.i("AudioEngine", "communication route=${device.description()} ${captureTiming()}")
+        }
+    } else null
     private val recordingCallback = object : AudioManager.AudioRecordingCallback() {
         override fun onRecordingConfigChanged(configs: MutableList<AudioRecordingConfiguration>) {
             if (!isRecording || !::audioRecord.isInitialized) return
             val config = configs.firstOrNull { it.clientAudioSessionId == audioRecord.audioSessionId }
                 ?: return
+            logRecordingConfiguration(config)
             setCaptureSilenced(config.isClientSilenced)
         }
     }
@@ -107,6 +119,9 @@ class AudioEngine (context: Context) {
         // Initialization must not interrupt music before a capture/playback operation owns a session.
         audioManager.registerAudioDeviceCallback(deviceCallback, mainHandler)
         audioManager.registerAudioRecordingCallback(recordingCallback, mainHandler)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            audioManager.addOnCommunicationDeviceChangedListener(context.mainExecutor, requireNotNull(communicationDeviceListener))
+        }
 
         val bufferSize = AudioTrack.getMinBufferSize(
             SAMPLE_RATE,
@@ -130,6 +145,24 @@ class AudioEngine (context: Context) {
         )
     }
 
+    private fun AudioDeviceInfo?.description(): String =
+        if (this == null) "none" else "type=$type name=$productName id=$id"
+
+    private fun captureTiming(): String {
+        val now = SystemClock.elapsedRealtime()
+        val requested = captureRequestedAtMs.takeIf { it != 0L }?.let { now - it }
+        val started = captureStartedAtMs.takeIf { it != 0L }?.let { now - it }
+        return "requestMs=$requested captureMs=$started"
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun logRecordingConfiguration(config: AudioRecordingConfiguration) {
+        Log.i(
+            "AudioEngine",
+            "input config=${config.audioDevice.description()} silenced=${config.isClientSilenced} ${captureTiming()}"
+        )
+    }
+
     @SuppressLint("NewApi")
     private fun updateAudioRouting() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -148,6 +181,11 @@ class AudioEngine (context: Context) {
                 // The device disconnected between enumeration and selection.
                 false
             }
+            Log.i(
+                "AudioEngine",
+                "communication devices=${devices.joinToString { it.description() }} " +
+                    "selected=${selected.description()} accepted=$routed ${captureTiming()}"
+            )
             if (!routed) audioManager.clearCommunicationDevice()
         } else {
             @Suppress("DEPRECATION")
@@ -155,6 +193,10 @@ class AudioEngine (context: Context) {
             // Before Android 12, A2DP signals a connected headset; start SCO to open its mic.
             val bluetooth = devices.any { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
                 it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP }
+            Log.i(
+                "AudioEngine",
+                "legacy outputs=${devices.joinToString { it.description() }} sco=$bluetooth ${captureTiming()}"
+            )
             @Suppress("DEPRECATION")
             if (bluetooth) audioManager.startBluetoothSco() else audioManager.stopBluetoothSco()
             @Suppress("DEPRECATION")
@@ -313,6 +355,8 @@ class AudioEngine (context: Context) {
     @RequiresApi(Build.VERSION_CODES.Q)
     @SuppressLint("MissingPermission")
     private fun startRecording(requestFocus: Boolean = true): Boolean {
+        captureRequestedAtMs = SystemClock.elapsedRealtime()
+        captureStartedAtMs = 0L
         activateCommunicationRoute()
         if (requestFocus && !requestAudioFocus()) {
             handleAudioFocusBlocked()
@@ -348,9 +392,14 @@ class AudioEngine (context: Context) {
             }
         }
 
+        audioRecord.addOnRoutingChangedListener(recordRoutingListener, mainHandler)
         audioRecord.startRecording()
+        captureStartedAtMs = SystemClock.elapsedRealtime()
         isRecording = true
-        setCaptureSilenced(audioRecord.activeRecordingConfiguration?.isClientSilenced ?: false)
+        Log.i("AudioEngine", "input started route=${audioRecord.routedDevice.description()} ${captureTiming()}")
+        val config = audioRecord.activeRecordingConfiguration
+        config?.let { logRecordingConfiguration(it) }
+        setCaptureSilenced(config?.isClientSilenced ?: false)
         startMicSampleTap(audioRecord)
         return true
     }
@@ -362,15 +411,28 @@ class AudioEngine (context: Context) {
         onAudioInterruptionCallback?.invoke(if (silenced) "capture_paused" else "capture_resumed")
     }
 
-    private fun startMicSampleTap(recorder: AudioRecord){
+    private fun startMicSampleTap(recorder: AudioRecord) {
+        val isDictation = captureMode == CaptureMode.DICTATION
         executorServiceMicrophone.execute {
             val buffer = ByteArray(1024)
+            val stats = if (isDictation) DictationCaptureStats() else null
+            var statsStartMs = SystemClock.elapsedRealtime()
             try {
                 while (isRecording && audioRecord === recorder) {
                     val read = recorder.read(buffer, 0, buffer.size)
                     if (!isRecording || audioRecord !== recorder) break
                     if (read < 0) throw IllegalStateException("AudioRecord read failed: $read")
-                    if (read > 0 && !captureSilenced) {
+                    val silenced = captureSilenced
+                    if (read > 0 && stats != null) {
+                        stats.add(buffer, read, silenced)
+                        val now = SystemClock.elapsedRealtime()
+                        if (now - statsStartMs >= 1000) {
+                            Log.i("AudioEngine", "dictation $stats")
+                            stats.reset()
+                            statsStartMs = now
+                        }
+                    }
+                    if (read > 0 && !silenced) {
                         val data = buffer.copyOf(read)
                         micEvents += 1
                         micBytes += data.size.toLong()
@@ -400,7 +462,10 @@ class AudioEngine (context: Context) {
         if (audioRecord.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
             audioRecord.stop()
         }
+        audioRecord.removeOnRoutingChangedListener(recordRoutingListener)
         audioRecord.release()
+        captureRequestedAtMs = 0L
+        captureStartedAtMs = 0L
         echoCanceler?.release()
         echoCanceler = null
         noiseSuppressor?.release()
@@ -443,7 +508,7 @@ class AudioEngine (context: Context) {
         Log.d(
             "AudioEngine",
             "playPCMData queued bytes=${data.size} queueSize=${audioSampleQueue.size} " +
-                "head=${data.take(12).joinToString(" ") { byte -> "%02x".format(byte.toInt() and 0xff) }}"
+                "playing=$isPlaying"
         )
         flushBridgeStats("queue")
         if (!isPlaying) {
@@ -558,6 +623,9 @@ class AudioEngine (context: Context) {
             audioManager.abandonAudioFocusRequest(request)
         }
         audioFocusRequest = null
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            audioManager.removeOnCommunicationDeviceChangedListener(requireNotNull(communicationDeviceListener))
+        }
         audioManager.unregisterAudioDeviceCallback(deviceCallback)
         audioManager.unregisterAudioRecordingCallback(recordingCallback)
         audioTrack.release()
