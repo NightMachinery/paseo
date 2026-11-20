@@ -378,6 +378,20 @@ Use browser/device automation to operate the app; the commands above only contro
 
 This fix requires a rebuilt native app. An OTA update on an older binary retains legacy capture.
 
+### Android headset microphone routing
+
+Use a physical Android device with a Bluetooth headset. The emulator can exercise
+dictation with its virtual microphone, but it cannot establish a headset mic link.
+Start dictation with the headset connected, speak, then disconnect it mid-dictation.
+Check that dictation continues on the phone microphone. Repeat with a Bluetooth
+device that only supports music playback.
+
+Run `adb logcat -s AudioEngine:I` during a repro. Compare the selected communication
+device and the time of its callback with the `AudioRecord` input route and configuration.
+A nonzero `dropped` count indicates that Android silenced capture. A headset input that
+returns only zeros while capture is available should switch once to the phone microphone.
+The `dictation` line logs counts and aggregate levels in PCM units.
+
 ### Releasing the audio session when idle
 
 Paseo must not hold the OS audio session once it is neither capturing nor playing, or the user's

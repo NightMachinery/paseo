@@ -18,7 +18,9 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 class AudioEngineTestActivity : Activity()
@@ -131,7 +133,7 @@ class AudioEngineTest {
     @Test @SdkSuppress(minSdkVersion = 31)
     fun startingWithMicrophonePrivacyEnabledWaitsAndRecovers() {
         shell("cmd sensor_privacy enable 0 microphone")
-        main { assertTrue(engine.startDictation()) }
+        startNativeDictation()
         await("initial input paused") { events.contains("capture_paused") }
         assertTrue(engine.isRecording)
         assertFalse(events.contains("blocked"))
@@ -182,8 +184,14 @@ class AudioEngineTest {
 
     private fun startDictation() {
         val before = packets.get()
-        main { assertTrue(engine.startDictation()) }
+        startNativeDictation()
         await("initial microphone data") { packets.get() > before + 3 }
+    }
+
+    private fun startNativeDictation() {
+        val started = CompletableFuture<Boolean>()
+        main { engine.startDictationAsync { started.complete(it == true) } }
+        assertTrue(started.get(5, TimeUnit.SECONDS))
     }
 
     private fun takeFocus(gain: Int): AudioFocusRequest {
@@ -211,8 +219,11 @@ class AudioEngineTest {
     private fun hasCommunicationRoute(): Boolean {
         val dump = shell("dumpsys audio")
         assertTrue("Missing Android communication route diagnostics", dump.contains("Communication route clients:"))
-        return dump.lineSequence().any {
-            it.trimStart().startsWith("[CommunicationRouteClient: mUid: ${android.os.Process.myUid()} ")
+        val uid = android.os.Process.myUid()
+        // Android 16 prints the owner UID inside AttributionSource.
+        return dump.lineSequence().map(String::trimStart).any {
+            it.startsWith("[CommunicationRouteClient: mUid: $uid ") ||
+                it.startsWith("[CommunicationRouteClient: mAttributionSource: AttributionSource { uid = $uid,")
         }
     }
 

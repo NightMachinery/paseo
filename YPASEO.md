@@ -80,6 +80,12 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   app id, name and icon; shares the official app's settings folder; upstream
   auto-update off; signed with the certificate named by `CSC_NAME` when set,
   ad hoc otherwise. Permanent while this fork exists.
+- **Android dictation recovers from a silent Bluetooth microphone.** The Android
+  audio engine waits for the headset route and switches to the phone mic if
+  the route fails or returns only zero samples. The app keeps the dictation
+  running and shows a notice. `AudioEngine` logs the route and PCM statistics.
+  Upstream draft on branch `android-bt-dictation`. Drop when upstream ships
+  equivalent diagnostics and recovery.
 - **Empty dictation results explain themselves and can be retried.**
   `packages/app/src/hooks/use-dictation*`. Upstream PR #8327, which maintainers
   carried into #8355 (issue #8339) with a reworded notice; drop when #8355 merges.

@@ -27,6 +27,14 @@ export function startDictation(): boolean {
   return ExpoTwoWayAudioModule.startDictation();
 }
 
+export async function startDictationAsync(): Promise<boolean> {
+  // COMPAT(bluetoothDictationRoute): older binaries and iOS use the synchronous method.
+  if (typeof ExpoTwoWayAudioModule.startDictationAsync !== "function") {
+    return startDictation();
+  }
+  return ExpoTwoWayAudioModule.startDictationAsync();
+}
+
 export function isRecording(): boolean {
   return ExpoTwoWayAudioModule.isRecording();
 }

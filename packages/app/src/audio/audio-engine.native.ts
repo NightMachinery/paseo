@@ -5,6 +5,7 @@ import type {
   AudioPlaybackSource,
 } from "./audio-engine-types";
 
+import * as native from "@getpaseo/expo-two-way-audio";
 import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { File, Paths } from "expo-file-system";
 import { createPlaybackQueue } from "./playback";
@@ -15,8 +16,6 @@ export function createAudioEngine(
   callbacks: AudioEngineCallbacks,
   options?: AudioEngineOptions,
 ): AudioEngine {
-  const native = require("@getpaseo/expo-two-way-audio");
-
   const refs: {
     initialized: boolean;
     captureActive: boolean;
@@ -28,6 +27,13 @@ export function createAudioEngine(
     muted: false,
     destroyed: false,
   };
+
+  let initializing: Promise<void> | undefined;
+  let captureStart: {
+    nativeRequested: boolean;
+    nativeStart?: Promise<boolean>;
+    cancelled: boolean;
+  } | null = null;
 
   const microphoneSubscription = native.addExpoTwoWayAudioEventListener(
     "onMicrophoneData",
@@ -52,8 +58,16 @@ export function createAudioEngine(
   const interruptionSubscription = native.addExpoTwoWayAudioEventListener(
     "onAudioInterruption",
     (event: { data: string }) => {
+      const ownsCapture =
+        refs.captureActive || (captureStart?.nativeRequested && !captureStart.cancelled);
+      if (event.data === "headset_mic_fallback") {
+        if (ownsCapture && options?.captureMode === "dictation") {
+          callbacks.onHeadsetMicrophoneFallback?.();
+        }
+        return;
+      }
       if (event.data === "capture_paused" || event.data === "capture_resumed") {
-        if (refs.captureActive) {
+        if (ownsCapture) {
           callbacks.onCaptureAvailabilityChange?.(event.data === "capture_resumed");
         }
         return;
@@ -72,14 +86,21 @@ export function createAudioEngine(
   );
 
   async function ensureInitialized(): Promise<void> {
-    if (refs.initialized) {
-      return;
+    if (refs.destroyed) throw new Error("Audio engine destroyed.");
+    if (refs.initialized) return;
+
+    initializing ??= (async () => {
+      if (!(await native.initialize())) {
+        throw new Error("expo-two-way-audio: native initialize() returned false");
+      }
+      refs.initialized = true;
+    })();
+    try {
+      await initializing;
+    } finally {
+      initializing = undefined;
     }
-    const success = await native.initialize();
-    if (!success) {
-      throw new Error("expo-two-way-audio: native initialize() returned false");
-    }
-    refs.initialized = true;
+    if (refs.destroyed) throw new Error("Audio engine destroyed.");
   }
 
   /**
@@ -157,6 +178,13 @@ export function createAudioEngine(
   }
   const playback = createPlaybackQueue(playAudio, releaseSessionIfIdle);
 
+  function stopNativeCapture(): void {
+    const wasStarting = captureStart?.nativeRequested && !captureStart.cancelled;
+    if (captureStart) captureStart.cancelled = true;
+    if (refs.captureActive || wasStarting) native.toggleRecording(false);
+    refs.captureActive = false;
+  }
+
   return {
     async initialize() {
       await ensureInitialized();
@@ -168,10 +196,10 @@ export function createAudioEngine(
       }
       refs.destroyed = true;
       playback.destroy();
-      if (refs.captureActive) {
-        native.toggleRecording(false);
-        refs.captureActive = false;
-      }
+      const pending = captureStart?.nativeStart;
+      stopNativeCapture();
+      // A queued start must settle before tearing down the engine it uses.
+      await Promise.allSettled([initializing, pending]);
       refs.muted = false;
       callbacks.onVolumeLevel(0);
       if (refs.initialized) {
@@ -184,35 +212,48 @@ export function createAudioEngine(
     },
 
     async startCapture() {
-      if (refs.captureActive) {
-        return;
-      }
+      if (refs.captureActive || captureStart) return;
+      if (refs.destroyed) throw new Error("Audio engine destroyed.");
 
+      const attempt: {
+        nativeRequested: boolean;
+        nativeStart?: Promise<boolean>;
+        cancelled: boolean;
+      } = { nativeRequested: false, cancelled: false };
+      captureStart = attempt;
       try {
         await ensureMicrophonePermission();
+        if (attempt.cancelled) throw new Error("Microphone capture was cancelled.");
         await ensureInitialized();
-        const isRecording =
-          options?.captureMode === "dictation"
-            ? native.startDictation()
-            : native.toggleRecording(true);
-        if (!isRecording) {
-          throw new Error(
-            "Microphone capture could not start because Android audio focus is unavailable.",
-          );
+        if (attempt.cancelled) throw new Error("Microphone capture was cancelled.");
+
+        attempt.nativeRequested = true;
+        let isRecording: boolean;
+        if (options?.captureMode === "dictation") {
+          attempt.nativeStart = native.startDictationAsync();
+          isRecording = await attempt.nativeStart;
+        } else {
+          isRecording = native.toggleRecording(true);
         }
+        if (attempt.cancelled) {
+          // A bridge start can be queued when the synchronous stop is called.
+          if (isRecording) native.toggleRecording(false);
+          throw new Error("Microphone capture was cancelled.");
+        }
+        if (!isRecording) throw new Error("Microphone capture could not start.");
         refs.captureActive = true;
       } catch (error) {
         const wrapped = error instanceof Error ? error : new Error(String(error));
-        callbacks.onError?.(wrapped);
+        if (!attempt.cancelled) callbacks.onError?.(wrapped);
         throw wrapped;
+      } finally {
+        captureStart = null;
+        releaseSessionIfIdle();
       }
     },
 
     async stopCapture() {
-      if (refs.captureActive) {
-        native.toggleRecording(false);
-      }
-      refs.captureActive = false;
+      stopNativeCapture();
       refs.muted = false;
       callbacks.onVolumeLevel(0);
       callbacks.onCaptureAvailabilityChange?.(true);

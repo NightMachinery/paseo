@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef } from "react";
 import { Buffer } from "buffer";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useToast } from "@/contexts/toast-api-context";
 
 import { createAudioEngine } from "@/audio";
 
@@ -13,6 +15,14 @@ export function useDictationAudioSource(config: DictationAudioSourceConfig): Dic
   const onPcmSegmentRef = useRef(config.onPcmSegment);
   const onErrorRef = useRef(config.onError);
   const onInterruptionRef = useRef(config.onInterruption);
+  const { t } = useTranslation();
+  const toast = useToast();
+  const headsetFallbackNotice = t("settings.voice.dictation.headsetFallback", {
+    defaultValue: "The headset microphone gave no audio. Using the phone microphone.",
+  });
+  const fallbackNoticeRef = useRef(() => {
+    toast.show(headsetFallbackNotice, { variant: "info" });
+  });
   const [volume, setVolume] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const engineRef = useRef<ReturnType<typeof createAudioEngine> | null>(null);
@@ -36,6 +46,7 @@ export function useDictationAudioSource(config: DictationAudioSourceConfig): Dic
         onInterruption: () => {
           onInterruptionRef.current?.();
         },
+        onHeadsetMicrophoneFallback: () => fallbackNoticeRef.current(),
         onCaptureAvailabilityChange: (available) => setIsPaused(!available),
       },
       { captureMode: "dictation" },
@@ -48,6 +59,12 @@ export function useDictationAudioSource(config: DictationAudioSourceConfig): Dic
     onErrorRef.current = config.onError;
     onInterruptionRef.current = config.onInterruption;
   }, [config.onPcmSegment, config.onError, config.onInterruption]);
+
+  useEffect(() => {
+    fallbackNoticeRef.current = () => {
+      toast.show(headsetFallbackNotice, { variant: "info" });
+    };
+  }, [headsetFallbackNotice, toast]);
 
   const start = useCallback(async () => {
     const engine = getOrCreateEngine();
