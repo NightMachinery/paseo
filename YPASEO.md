@@ -304,3 +304,12 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   Replacements and truncation can invalidate a download. Claude sidechains
   are outside the main file. Upstream proposal pending. Drop when upstream
   offers equivalent native transcript downloads.
+
+- **Dictation is wrapped in a speech-to-text block.** Composer dictation is inserted as a
+  fenced block labeled `speech-to-text` (on its own line, consecutive dictations merged, fences
+  lengthened past any backtick run in the transcript), so agents can treat that text as speech.
+  Configurable under Settings > Voice > Dictation or `features.dictation.wrap` (`enabled`,
+  `prefix`, `suffix`, `mergeConsecutive`); on by default. App `composer/input/dictation-wrap.ts`,
+  `state.ts`, `voice-page.tsx`; daemon `persisted-config.ts`, `speech/speech-settings.ts`. Upstream
+  PR https://github.com/getpaseo/paseo/pull/10299 (branch `dictation-stt-block`); drop when it
+  merges (keep it on by default here even if upstream ships it off).
