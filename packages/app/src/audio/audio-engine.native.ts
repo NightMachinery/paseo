@@ -5,6 +5,8 @@ import type {
   AudioPlaybackSource,
 } from "./audio-engine-types";
 
+import { isAndroid } from "@/constants/platform";
+import { useDictationMicrophoneStore } from "@/voice/dictation-microphone";
 import * as native from "@getpaseo/expo-two-way-audio";
 import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { File, Paths } from "expo-file-system";
@@ -227,12 +229,16 @@ export function createAudioEngine(
         await ensureInitialized();
         if (attempt.cancelled) throw new Error("Microphone capture was cancelled.");
 
-        attempt.nativeRequested = true;
         let isRecording: boolean;
         if (options?.captureMode === "dictation") {
-          attempt.nativeStart = native.startDictationAsync();
+          const useDeviceMicrophone =
+            isAndroid && (await useDictationMicrophoneStore.read()) === "device";
+          if (attempt.cancelled) throw new Error("Microphone capture was cancelled.");
+          attempt.nativeRequested = true;
+          attempt.nativeStart = native.startDictationAsync(useDeviceMicrophone);
           isRecording = await attempt.nativeStart;
         } else {
+          attempt.nativeRequested = true;
           isRecording = native.toggleRecording(true);
         }
         if (attempt.cancelled) {

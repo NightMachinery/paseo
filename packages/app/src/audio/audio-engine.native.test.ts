@@ -1,8 +1,13 @@
 import { beforeEach, expect, test, vi } from "vitest";
 import * as native from "@getpaseo/expo-two-way-audio";
+import { useDictationMicrophoneStore } from "@/voice/dictation-microphone";
 import { createAudioEngine } from "./audio-engine.native";
 
 vi.mock("expo-audio", () => ({ createAudioPlayer: vi.fn(), setAudioModeAsync: vi.fn() }));
+vi.mock("@/constants/platform", () => ({ isAndroid: true }));
+vi.mock("@/voice/dictation-microphone", () => ({
+  useDictationMicrophoneStore: { read: vi.fn(async () => "automatic") },
+}));
 vi.mock("expo-file-system", () => ({ File: vi.fn(), Paths: {} }));
 vi.mock("@getpaseo/expo-two-way-audio", () => ({
   initialize: vi.fn(async () => true),
@@ -75,5 +80,19 @@ test("stopping capture during route setup cancels a late native start", async ()
   expect(callbacks.onError).not.toHaveBeenCalled();
   emit("onMicrophoneData", { data: Uint8Array.of(1, 0) });
   expect(callbacks.onCaptureData).not.toHaveBeenCalled();
+  await engine.destroy();
+});
+
+test("Android dictation passes the current microphone choice to native", async () => {
+  const read = vi.mocked(useDictationMicrophoneStore.read);
+  read.mockResolvedValueOnce("automatic").mockResolvedValueOnce("device");
+  const engine = createAudioEngine(callbacks, { captureMode: "dictation" });
+
+  await engine.startCapture();
+  await engine.stopCapture();
+  await engine.startCapture();
+
+  expect(native.startDictationAsync).toHaveBeenNthCalledWith(1, false);
+  expect(native.startDictationAsync).toHaveBeenNthCalledWith(2, true);
   await engine.destroy();
 });

@@ -384,7 +384,9 @@ Use a physical Android device with a Bluetooth headset. The emulator can exercis
 dictation with its virtual microphone, but it cannot establish a headset mic link.
 Start dictation with the headset connected, speak, then disconnect it mid-dictation.
 Check that dictation continues on the phone microphone. Repeat with a Bluetooth
-device that only supports music playback.
+device that only supports music playback. Select **This device** under **Settings >
+Voice > Dictation > Microphone**, then verify that dictation uses the built-in
+microphone and music continues on the headset.
 
 Run `adb logcat -s AudioEngine:I` during a repro. Compare the selected communication
 device and the time of its callback with the `AudioRecord` input route and configuration.

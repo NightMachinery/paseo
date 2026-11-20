@@ -26,6 +26,7 @@ import { useToast } from "@/contexts/toast-api-context";
 import { useDaemonConfig } from "@/hooks/use-daemon-config";
 import { useHostFeature } from "@/runtime/host-features";
 import { useHostRuntimeIsConnected } from "@/runtime/host-runtime";
+import { AndroidDictationMicrophone } from "./android-dictation-microphone";
 import { RecentDictationsSection } from "./recent-dictations-section";
 import { SpeechProviderSheet } from "./speech-provider-sheet";
 import { useLocalSpeechModels } from "./use-local-speech-models";
@@ -117,11 +118,17 @@ export function HostVoicePage({ serverId }: { serverId: string }) {
   }, []);
   const dismissSheet = useCallback(() => setSheet(null), []);
 
-  if (!isConnected) {
-    return <Alert size="md" variant="warning" title={t("settings.voice.offline")} />;
-  }
-  if (!supported) {
-    return <Alert size="md" variant="warning" title={t("settings.voice.updateHost")} />;
+  if (!isConnected || !supported) {
+    return (
+      <View>
+        <AndroidDictationMicrophone standalone />
+        <Alert
+          size="md"
+          variant="warning"
+          title={isConnected ? t("settings.voice.updateHost") : t("settings.voice.offline")}
+        />
+      </View>
+    );
   }
   const features = config?.features;
   if (!features) {
@@ -152,6 +159,7 @@ export function HostVoicePage({ serverId }: { serverId: string }) {
     <View testID="voice-settings">
       <SettingsSection title={t("settings.voice.dictation.title")} testID="voice-dictation">
         <SettingsCard>
+          <AndroidDictationMicrophone />
           <FeatureSwitchRow
             label={t("settings.voice.dictation.enabled")}
             hint={t("settings.voice.dictation.enabledHint")}

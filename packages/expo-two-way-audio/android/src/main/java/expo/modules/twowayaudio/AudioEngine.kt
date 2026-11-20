@@ -655,14 +655,15 @@ class AudioEngine (private val context: Context) {
 
     @Synchronized
     @RequiresApi(Build.VERSION_CODES.Q)
-    fun startDictationAsync(onComplete: (Boolean?) -> Unit) {
+    fun startDictationAsync(useDeviceMicrophone: Boolean, onComplete: (Boolean?) -> Unit) {
         isRecordingBeforePause = false
         if (tornDown || pendingDictation != null || isRecording) {
             onComplete(isRecording && captureMode == CaptureMode.DICTATION)
             return
         }
         captureMode = CaptureMode.DICTATION
-        usingDeviceMicrophone = false
+        usingDeviceMicrophone = useDeviceMicrophone
+        if (usingDeviceMicrophone) releaseCaptureRoute()
         prepareDictation(requestFocus = true, onComplete)
     }
 

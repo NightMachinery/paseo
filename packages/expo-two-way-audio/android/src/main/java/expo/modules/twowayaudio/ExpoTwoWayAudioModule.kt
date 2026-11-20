@@ -48,12 +48,12 @@ class ExpoTwoWayAudioModule : Module() {
              isRecording
          }
 
-         AsyncFunction("startDictationAsync") { promise: Promise ->
+         AsyncFunction("startDictationAsync") { useDeviceMicrophone: Boolean, promise: Promise ->
              val engine = audioEngine
              if (engine == null) {
                  promise.resolve(false)
              } else {
-                 engine.startDictationAsync { isRecording ->
+                 engine.startDictationAsync(useDeviceMicrophone) { isRecording ->
                      sendEvent(ON_RECORDING_CHANGE_EVENT, mapOf("data" to (isRecording == true)))
                      promise.resolve(isRecording == true)
                  }

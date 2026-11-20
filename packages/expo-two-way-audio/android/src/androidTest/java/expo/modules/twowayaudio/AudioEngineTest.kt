@@ -188,9 +188,18 @@ class AudioEngineTest {
         await("initial microphone data") { packets.get() > before + 3 }
     }
 
-    private fun startNativeDictation() {
+    @Test fun builtInMicrophoneCapturesWithoutEnteringCommunicationMode() {
+        takeFocus(AudioManager.AUDIOFOCUS_GAIN)
+        startNativeDictation(useDeviceMicrophone = true)
+        await("a second of built-in microphone data") { packets.get() > 36 }
+        assertEquals(AudioManager.MODE_NORMAL, audio.mode)
+        assertTrue(engine.isRecording)
+        assertTrue(events.isEmpty())
+    }
+
+    private fun startNativeDictation(useDeviceMicrophone: Boolean = false) {
         val started = CompletableFuture<Boolean>()
-        main { engine.startDictationAsync { started.complete(it == true) } }
+        main { engine.startDictationAsync(useDeviceMicrophone) { started.complete(it == true) } }
         assertTrue(started.get(5, TimeUnit.SECONDS))
     }
 

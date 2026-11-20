@@ -84,8 +84,10 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   audio engine waits for the headset route and switches to the phone mic if
   the route fails or returns only zero samples. The app keeps the dictation
   running and shows a notice. `AudioEngine` logs the route and PCM statistics.
-  Upstream draft on branch `android-bt-dictation`. Drop when upstream ships
-  equivalent diagnostics and recovery.
+  Settings > Voice > Dictation > Microphone offers a device-local override
+  that uses the built-in microphone without taking playback focus.
+  Upstream draft on branch `android-bt-dictation`. Drop the recovery and
+  the picker as upstream ships equivalent behavior.
 - **Empty dictation results explain themselves and can be retried.**
   `packages/app/src/hooks/use-dictation*`. Upstream PR #8327, which maintainers
   carried into #8355 (issue #8339) with a reworded notice; drop when #8355 merges.
