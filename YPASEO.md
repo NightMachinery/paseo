@@ -313,3 +313,9 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   `state.ts`, `voice-page.tsx`; daemon `persisted-config.ts`, `speech/speech-settings.ts`. Upstream
   PR https://github.com/getpaseo/paseo/pull/10299 (branch `dictation-stt-block`); drop when it
   merges (keep it on by default here even if upstream ships it off).
+
+- **The paseo skill tells agents to hide helpers.** `skills/paseo/SKILL.md` says to pass
+  `background: true` (MCP) or `paseo run --background` (CLI) for helper agents the user does not
+  watch, instead of upstream's "override it only when the user explicitly asks". Without it every
+  child in its own workspace, and each of its children, showed in the sidebar. Drop if upstream
+  adopts equivalent guidance.
