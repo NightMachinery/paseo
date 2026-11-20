@@ -2536,6 +2536,12 @@ export const en = {
         title: "Dictation",
         enabled: "Dictation",
         enabledHint: "Speak into the message box instead of typing",
+        wrapEnabled: "Wrap dictation in a block",
+        mergeConsecutive: "Merge consecutive dictations",
+        markers: "Block markers",
+        prefix: "Prefix",
+        suffix: "Suffix",
+        resetMarkers: "Reset markers",
       },
       recordings: {
         title: "Recent dictations",

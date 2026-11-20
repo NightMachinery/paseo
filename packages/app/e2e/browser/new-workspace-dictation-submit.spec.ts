@@ -24,15 +24,16 @@ import {
 } from "../support/helpers/dictation";
 
 const TRANSCRIPT = "Keep this spoken prompt visible while creating the workspace";
+const WRAPPED_TRANSCRIPT = "```speech-to-text\n" + TRANSCRIPT + "\n```";
 const CREATE_FAILURE = "Synthetic workspace creation failure";
 
 async function installDictationFailureHarness(page: Page) {
   let resolveAudioChunk!: () => void;
-  let resolveCreateRequest!: () => void;
+  let resolveCreateRequest!: (request: Record<string, unknown>) => void;
   const audioChunk = new Promise<void>((resolve) => {
     resolveAudioChunk = resolve;
   });
-  const createRequest = new Promise<void>((resolve) => {
+  const createRequest = new Promise<Record<string, unknown>>((resolve) => {
     resolveCreateRequest = resolve;
   });
   let failCreate: (() => void) | null = null;
@@ -85,7 +86,7 @@ async function installDictationFailureHarness(page: Page) {
             },
           });
         };
-        resolveCreateRequest();
+        resolveCreateRequest(request);
         return;
       }
 
@@ -131,16 +132,17 @@ test.describe("New Workspace dictation submit", () => {
       await selectWorkspaceIsolation(page, "local");
 
       await dictateAndSend(page, harness.waitForAudio);
-      await harness.waitForCreateRequest();
+      const submitted = await harness.waitForCreateRequest();
+      expect(submitted.agent).toMatchObject({ initialPrompt: WRAPPED_TRANSCRIPT });
 
       const composer = page.getByRole("textbox", { name: "Message agent..." });
-      await expect(composer).toHaveValue(TRANSCRIPT);
+      await expect(composer).toHaveValue(WRAPPED_TRANSCRIPT + "\n");
       await expect(composer).not.toBeEditable();
 
       harness.failWorkspaceCreation();
 
       await expect(composer).toBeEditable();
-      await expect(composer).toHaveValue(TRANSCRIPT);
+      await expect(composer).toHaveValue(WRAPPED_TRANSCRIPT + "\n");
       await expect(page.getByText(CREATE_FAILURE).first()).toBeVisible();
     } finally {
       await seeded.cleanup();
@@ -149,7 +151,7 @@ test.describe("New Workspace dictation submit", () => {
 });
 
 async function startDictationWithShortcut(page: Page): Promise<void> {
-  await composerLocator(page).press("Control+d");
+  await composerLocator(page).press("ControlOrMeta+d");
 }
 
 test("dictation shortcut leaves retained fullscreen and exposes recording controls", async ({
@@ -186,7 +188,7 @@ test("dictation shortcut leaves retained fullscreen and exposes recording contro
     await resizeComposerViewport(page, "portrait");
     await enterComposerFullscreen(page);
     await resizeComposerViewport(page, "landscape");
-    await composerLocator(page).press("Control+Shift+d");
+    await composerLocator(page).press("ControlOrMeta+Shift+d");
     await expect(page.getByRole("button", { name: "Exit fullscreen", exact: true })).toHaveCount(0);
     await expect(
       page.getByText("Realtime voice is disabled in this test.", { exact: true }),

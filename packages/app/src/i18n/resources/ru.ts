@@ -2442,6 +2442,12 @@ export const ru: TranslationResources = {
         title: "Диктовка",
         enabled: "Диктовка",
         enabledHint: "Говорите в поле сообщения вместо набора текста",
+        wrapEnabled: "Помещать диктовку в блок",
+        mergeConsecutive: "Объединять последовательные диктовки",
+        markers: "Границы блока",
+        prefix: "Префикс",
+        suffix: "Суффикс",
+        resetMarkers: "Сбросить границы",
       },
       recordings: {
         title: "Недавние диктовки",
