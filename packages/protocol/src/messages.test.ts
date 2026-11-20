@@ -287,6 +287,35 @@ describe("provider usage list message contract", () => {
 });
 
 describe("diagnostics message contract", () => {
+  test("client log upload support is optional in the daemon handshake", () => {
+    const status = {
+      type: "status",
+      payload: {
+        status: "server_info",
+        serverId: "test-server",
+        features: { daemonDiagnostics: true },
+      },
+    };
+    const old = SessionOutboundMessageSchema.parse(status);
+    const current = SessionOutboundMessageSchema.parse({
+      ...status,
+      payload: {
+        ...status.payload,
+        features: { ...status.payload.features, clientLogsUpload: true },
+      },
+    });
+    expect(old).toEqual(status);
+    expect(current).toMatchObject({ payload: { features: { clientLogsUpload: true } } });
+    expect(
+      SessionInboundMessageSchema.safeParse({
+        type: "diagnostics.client_logs.upload.request",
+        platform: "../unsafe",
+        contents: "test",
+        requestId: "upload",
+      }).success,
+    ).toBe(false);
+  });
+
   test("accepts the diagnostics request as a simple namespaced RPC", () => {
     const parsed = SessionInboundMessageSchema.parse({
       type: "diagnostics.request",

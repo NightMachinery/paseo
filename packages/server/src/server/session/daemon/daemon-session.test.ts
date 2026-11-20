@@ -1,4 +1,13 @@
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
@@ -78,6 +87,61 @@ function makeSubsystem(overrides: {
 }
 
 describe("DaemonSession", () => {
+  test("uploads a private client log and prunes old reports", async () => {
+    const { subsystem, emitted, paseoHome } = makeSubsystem({});
+    const directory = join(paseoHome, "client-logs");
+    mkdirSync(directory, { mode: 0o755 });
+    writeFileSync(join(directory, "notes.log"), "keep");
+    for (let index = 0; index < 50; index++) {
+      const random = index.toString(16).padStart(12, "0");
+      writeFileSync(join(directory, `2020-01-01T00-00-00.000Z-web-${random}.log`), "old");
+    }
+    await subsystem.handleClientLogsUpload({
+      type: "diagnostics.client_logs.upload.request",
+      requestId: "upload-1",
+      platform: "android",
+      contents: "AudioEngine: test entry",
+    });
+    const reply = emitted[0];
+    expect(reply).toMatchObject({
+      type: "diagnostics.client_logs.upload.response",
+      payload: { requestId: "upload-1", path: expect.any(String), error: null },
+    });
+    if (reply.type !== "diagnostics.client_logs.upload.response" || reply.payload.path === null) {
+      throw new Error("Expected a client log path");
+    }
+    expect(readFileSync(reply.payload.path, "utf8")).toBe("AudioEngine: test entry");
+    if (process.platform !== "win32") {
+      expect(statSync(directory).mode & 0o777).toBe(0o700);
+      expect(statSync(reply.payload.path).mode & 0o777).toBe(0o600);
+    }
+    const names = readdirSync(directory);
+    expect(names).toHaveLength(51);
+    expect(names).toContain("notes.log");
+    expect(names).not.toContain("2020-01-01T00-00-00.000Z-web-000000000000.log");
+  });
+
+  test("rejects logs over the UTF-8 byte limit before creating the directory", async () => {
+    const { subsystem, emitted, paseoHome } = makeSubsystem({});
+    await subsystem.handleClientLogsUpload({
+      type: "diagnostics.client_logs.upload.request",
+      requestId: "upload-2",
+      platform: "web",
+      contents: "é".repeat(5 * 1024 * 1024 + 1),
+    });
+    expect(emitted).toEqual([
+      {
+        type: "diagnostics.client_logs.upload.response",
+        payload: {
+          requestId: "upload-2",
+          path: null,
+          error: "Client logs exceed the 10 MiB limit",
+        },
+      },
+    ]);
+    expect(readdirSync(paseoHome)).toEqual([]);
+  });
+
   test("config reload returns the daemon-owned classification", async () => {
     const { subsystem, emitted } = makeSubsystem({
       reloadConfig: async () => ({

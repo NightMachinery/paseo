@@ -300,3 +300,7 @@ npx eas build:view <build-id>
 The Play Console (Internal testing → Production tracks) is the final confirmation that the binary reached the store.
 
 See [docs/release.md](release.md) for the full mobile-build babysitting flow.
+
+## Collecting app logs
+
+Use the app's [diagnostic export](../public-docs/troubleshooting.md#reading-the-logs) to collect logcat lines from the app process, including native audio logs. Android restricts log buffer clearing to privileged callers. The app remembers the clear time and uses it to filter its next export.

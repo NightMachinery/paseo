@@ -84,6 +84,12 @@ paseo --host <host:port> provider diagnostic <provider> --json
 
 ## 查看日志 {#reading-the-logs}
 
+打开 **设置 → 诊断 → 应用诊断** 收集客户端日志。**导出日志** 会在浏览器和桌面端下载纯文本文件，或在移动端打开系统分享面板。文件包含近期的 JavaScript 日志。Android 端还包含应用进程的 logcat 日志，桌面端还包含主进程日志的末尾部分。
+
+**发送日志到主机** 会将同一份已脱敏的报告保存到支持日志上传的已连接主机。发送后可复制显示的路径。守护进程会在 `$PASEO_HOME/client-logs`（默认为 `~/.paseo/client-logs`）中保留最多 50 份报告。
+
+复现问题前，可选择 **清除日志** 来清空 JavaScript 日志并从下次导出中排除更早的 Android logcat 记录。公开分享前请检查导出的文件。
+
 - **桌面应用**：登录 shell 的解析过程记录在这里。查找 `[login-shell-env]`：`applied` 表示成功（会记录前后的 `PATH`）；`failed; keeping inherited env` 表示它退回到了精简环境，并附带 `reason`（超时、shell 配置以非零状态退出、没有输出等）。最常见的原因是 `.zshrc`/`.zprofile` 运行缓慢或出错。
 - **daemon**：`~/.paseo/daemon.log`（如果你设置了自定义 home，则是 `$PASEO_HOME/daemon.log`）。
 

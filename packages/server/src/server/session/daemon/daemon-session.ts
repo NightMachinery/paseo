@@ -8,6 +8,7 @@ import {
   collectDaemonDiagnostics,
   type DaemonWebSocketRuntimeDiagnosticSnapshot,
 } from "./diagnostics.js";
+import { saveClientLogs, ClientLogsSizeError } from "./client-logs.js";
 import { DaemonSelfUpdateSessionController } from "./daemon-self-update-session-controller.js";
 import type { ManagedAgent } from "../../agent/agent-manager.js";
 import type { PersistedProjectRecord, PersistedWorkspaceRecord } from "../../workspace-registry.js";
@@ -288,6 +289,28 @@ export class DaemonSession {
         },
       });
     }
+  }
+
+  async handleClientLogsUpload(
+    msg: Extract<SessionInboundMessage, { type: "diagnostics.client_logs.upload.request" }>,
+  ): Promise<void> {
+    let path: string | null = null;
+    let error: string | null = null;
+    try {
+      path = await saveClientLogs(this.paseoHome, msg.platform, msg.contents);
+      this.logger.info({ path }, "Saved client logs");
+    } catch (cause) {
+      if (cause instanceof ClientLogsSizeError) {
+        error = cause.message;
+      } else {
+        this.logger.error({ err: cause }, "Failed to save client logs");
+        error = "Could not save client logs";
+      }
+    }
+    this.host.emit({
+      type: "diagnostics.client_logs.upload.response",
+      payload: { requestId: msg.requestId, path, error },
+    });
   }
 
   async handleDiagnosticsRequest(

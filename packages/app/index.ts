@@ -2,6 +2,10 @@
 // oxlint-disable-next-line import/no-unassigned-import -- Polyfills install on import.
 import "./src/polyfills/install-early";
 
+// Capture startup diagnostics before loading any screens.
+// oxlint-disable-next-line import/no-unassigned-import -- Install capture before root modules.
+import "./src/diagnostics/install-client-logs";
+
 // Configure Unistyles before Expo Router pulls in any components using StyleSheet.
 import "./src/styles/unistyles";
 // oxlint-disable-next-line import/no-unassigned-import -- Preserve Expo's entry side effects.

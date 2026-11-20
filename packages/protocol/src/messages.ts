@@ -1602,6 +1602,13 @@ export const HubManagementDaemonPermissionsUpdateRequestSchema = z.object({
   revoke: z.array(DaemonPermissionSchema).default([]),
 });
 
+export const ClientLogsUploadRequestSchema = z.object({
+  type: z.literal("diagnostics.client_logs.upload.request"),
+  platform: z.enum(["android", "ios", "web", "desktop"]),
+  contents: z.string(),
+  requestId: z.string(),
+});
+
 export const DiagnosticsRequestSchema = z.object({
   type: z.literal("diagnostics.request"),
   requestId: z.string(),
@@ -3616,6 +3623,7 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   HubManagementDaemonGetStatusRequestSchema,
   HubManagementDaemonDisconnectRequestSchema,
   HubManagementDaemonPermissionsUpdateRequestSchema,
+  ClientLogsUploadRequestSchema,
   DiagnosticsRequestSchema,
   PluginCatalogGetRequestSchema,
   PluginListRequestSchema,
@@ -4095,6 +4103,8 @@ export const ServerInfoStatusPayloadSchema = z
         agentThinkingUpdate: z.boolean().optional(),
         // COMPAT(daemonDiagnostics): added in v0.1.100, remove gate after 2026-12-25 once daemon floor >= v0.1.100.
         daemonDiagnostics: z.boolean().optional(),
+        // COMPAT(clientLogsUpload): added in v0.17.0, remove gate once the daemon floor supports client log uploads.
+        clientLogsUpload: z.boolean().optional(),
         // COMPAT(daemonSelfUpdate): added in v0.1.93, remove gate after 2026-12-13.
         daemonSelfUpdate: z.boolean().optional(),
         // COMPAT(terminalsSurviveRestart): added in v0.12.0, remove gate after 2027-04-21.
@@ -5690,6 +5700,15 @@ export const DaemonConfigReloadResponseSchema = z.object({
       overrideControlledPaths: z.array(z.string()),
     })
     .passthrough(),
+});
+
+export const ClientLogsUploadResponseSchema = z.object({
+  type: z.literal("diagnostics.client_logs.upload.response"),
+  payload: z.object({
+    requestId: z.string(),
+    path: z.string().nullable(),
+    error: z.string().nullable(),
+  }),
 });
 
 export const DiagnosticsResponseSchema = z.object({
@@ -7635,6 +7654,7 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   HubManagementDaemonGetStatusResponseSchema,
   HubManagementDaemonDisconnectResponseSchema,
   HubManagementDaemonPermissionsUpdateResponseSchema,
+  ClientLogsUploadResponseSchema,
   DiagnosticsResponseSchema,
   GetDaemonConfigResponseMessageSchema,
   SetDaemonConfigResponseMessageSchema,
@@ -7897,6 +7917,7 @@ export type ListAvailableProvidersResponse = z.infer<typeof ListAvailableProvide
 export type DaemonGetStatusResponse = z.infer<typeof DaemonGetStatusResponseSchema>;
 export type DaemonGetPairingOfferResponse = z.infer<typeof DaemonGetPairingOfferResponseSchema>;
 export type DaemonConfigReloadResponse = z.infer<typeof DaemonConfigReloadResponseSchema>;
+export type ClientLogsUploadRequest = z.infer<typeof ClientLogsUploadRequestSchema>;
 export type DiagnosticsResponse = z.infer<typeof DiagnosticsResponseSchema>;
 export type GetProvidersSnapshotResponseMessage = z.infer<
   typeof GetProvidersSnapshotResponseMessageSchema

@@ -86,6 +86,12 @@ This login-shell step runs on macOS and Linux. On Windows, Paseo uses the enviro
 
 ## Reading the logs
 
+Open **Settings → Diagnostics → App diagnostic** to collect client logs. **Export logs** downloads a plain-text file in the browser and desktop app, or opens the system share sheet on mobile. The file includes recent JavaScript logs and, on Android, logcat lines from the app process. The desktop app also includes the tail of its main-process log.
+
+**Send logs to host** saves the same redacted report on a connected host that supports log uploads. Copy the path shown after sending. The daemon stores up to 50 reports in `$PASEO_HOME/client-logs` (`~/.paseo/client-logs` by default).
+
+Use **Clear logs** before reproducing a problem to start a fresh JavaScript buffer and exclude older Android logcat entries from the next export. Review the exported file before sharing it publicly.
+
 - **Desktop app** — the login-shell resolution is logged here. Look for `[login-shell-env]`: `applied` means it worked (it logs the `PATH` before and after); `failed; keeping inherited env` means it fell back to the stripped-down environment, with a `reason` (a timeout, a non-zero exit from your shell config, no output, …). A slow or erroring `.zshrc`/`.zprofile` is the usual cause.
 - **Daemon** — `~/.paseo/daemon.log` (`$PASEO_HOME/daemon.log` if you've set a custom home).
 

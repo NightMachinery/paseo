@@ -10,6 +10,7 @@ import {
   SheetHeaderIconButton,
   type SheetHeader,
 } from "@/components/adaptive-modal-sheet";
+import { ClientLogActions } from "@/components/client-log-actions";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { ScrollableCodeSurface, SurfaceCard } from "@/components/ui/scrollable-code-surface";
 import { useToast } from "@/contexts/toast-context";
@@ -188,6 +189,9 @@ export function AppDiagnosticSheet({
       scrollable={false}
       testID="app-diagnostic-sheet"
     >
+      {visible ? (
+        <ClientLogActions appVersion={appVersion} hosts={hosts} isDesktopApp={isDesktopApp} />
+      ) : null}
       {diagnostic ? (
         <ScrollableCodeSurface key={visible ? "visible" : "hidden"} maxHeight={520}>
           {diagnostic}

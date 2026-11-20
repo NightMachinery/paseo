@@ -124,6 +124,7 @@ import type {
   DaemonGetStatusResponse,
   DaemonGetPairingOfferResponse,
   DaemonConfigReloadResponse,
+  ClientLogsUploadRequest,
   DiagnosticsResponse,
   AgentRewindResponseMessage,
   ListTerminalsResponse,
@@ -6174,6 +6175,18 @@ export class DaemonClient {
       responseType: "daemon.get_pairing_offer.response",
       timeout: options?.timeout,
     });
+  }
+
+  async uploadClientLogs(platform: ClientLogsUploadRequest["platform"], contents: string) {
+    if (this.getLastServerInfoMessage()?.features?.clientLogsUpload !== true) {
+      throw new Error("This host does not support client log uploads");
+    }
+    const result =
+      await this.sendNamespacedCorrelatedSessionRequest<"diagnostics.client_logs.upload.response">({
+        message: { type: "diagnostics.client_logs.upload.request", platform, contents },
+      });
+    if (result.path === null) throw new Error(result.error ?? "Could not save client logs");
+    return result.path;
   }
 
   async collectDiagnostics(requestId?: string): Promise<DiagnosticsPayload> {

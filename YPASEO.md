@@ -327,3 +327,13 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   watch, instead of upstream's "override it only when the user explicitly asks". Without it every
   child in its own workspace, and each of its children, showed in the sidebar. Drop if upstream
   adopts equivalent guidance.
+
+- **App diagnostic exports and sends client logs.** Settings > Diagnostics can
+  share a redacted report, send it to a compatible host, or clear the local
+  capture. Android includes app-process logcat. App code lives in
+  `packages/app/src/diagnostics/client-log-*` and
+  `packages/app/modules/paseo-client-logs`. The daemon writes to
+  `$PASEO_HOME/client-logs` through `diagnostics.client_logs.upload`. This port
+  carries the upstream proposal's translations in every locale to preserve
+  translation parity. Upstream Discussion draft prepared. Drop when equivalent
+  export, upload, and clear controls ship upstream.

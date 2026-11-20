@@ -359,6 +359,13 @@ async function fetchDownload(fetchFile: typeof fetch, url: string): Promise<Blob
   }
 }
 
+export async function saveAndShareDownloadedBytes(file: DownloadedBytes) {
+  const uri = await saveDownloadedBytes(file);
+  if (uri !== null && !(await shareSavedFile(uri, file.mimeType, file.fileName))) {
+    throw new Error("File sharing is unavailable");
+  }
+}
+
 /**
  * Saves bytes read over the session. Web and Electron hand them to the browser's download
  * manager and return `null`; native writes the file and returns its URI for the share sheet.
@@ -384,15 +391,15 @@ async function shareSavedFile(
   uri: string,
   mimeType: string | null,
   fileName: string,
-): Promise<void> {
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(uri, {
-      mimeType: mimeType ?? undefined,
-      dialogTitle: fileName
-        ? i18n.t("downloads.shareFileNamed", { fileName })
-        : i18n.t("downloads.shareFile"),
-    });
-  }
+): Promise<boolean> {
+  if (!(await Sharing.isAvailableAsync())) return false;
+  await Sharing.shareAsync(uri, {
+    mimeType: mimeType ?? undefined,
+    dialogTitle: fileName
+      ? i18n.t("downloads.shareFileNamed", { fileName })
+      : i18n.t("downloads.shareFile"),
+  });
+  return true;
 }
 
 function saveBrowserFile(file: Blob, fileName: string) {
