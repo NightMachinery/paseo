@@ -132,6 +132,7 @@ export interface WorkspaceDescriptor {
   title?: string | null;
   pinnedAt?: string | null;
   pinnedOrder?: number;
+  tabLayout?: WorkspaceDescriptorPayload["tabLayout"];
   labels?: string[];
   status: WorkspaceDescriptorPayload["status"];
   statusEnteredAt: Date | null;
@@ -178,6 +179,7 @@ export function normalizeWorkspaceDescriptor(
     title: payload.title ?? null,
     pinnedAt: payload.pinnedAt ?? null,
     pinnedOrder: payload.pinnedOrder,
+    tabLayout: payload.tabLayout,
     // COMPAT(workspaceLabels): old daemons omit assignments.
     labels: payload.labels ?? [],
     status: payload.status,

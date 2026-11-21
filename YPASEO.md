@@ -224,6 +224,11 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   in the daemon registry flow through existing workspace updates to the sidebar.
   Older daemons use the device order. Upstream draft on branch
   `sync-pinned-order`; drop when upstream ships it.
+- **Workspace tabs follow the host across clients.** The daemon shares open
+  tabs, their order, and agent visibility through workspace updates. In host
+  settings, Sync workspace splits offers Off (the default), Desktops only, or
+  All devices. Older hosts keep the local layout. Fork feature, related to
+  upstream issue #5886 and PR #5887.
 - **Agent messages wait for the running turn to end.** Upstream #9757, cherry-picked from
   `origin/main` (41c294c78) because no release tag contains it yet:
   `packages/server/src/server/agent/agent-messages/delivery.ts` holds agent-originated

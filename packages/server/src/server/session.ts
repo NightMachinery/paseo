@@ -1,3 +1,4 @@
+import { syncsWorkspaceSplits } from "@getpaseo/protocol/workspace-tab-layout";
 import { NativeTranscriptError, NativeTranscriptSnapshots } from "./agent/native-transcript.js";
 import { DiffSession } from "./diff/index.js";
 import { type WorkspaceRuntimeStore } from "./workspace-runtime-store/index.js";
@@ -2689,6 +2690,8 @@ export class Session {
   }
 
   private dispatchWorkspaceLifecycleMessage(msg: SessionInboundMessage): Promise<void> | undefined {
+    if (msg.type === "workspace.tabs.apply.request")
+      return this.handleWorkspaceTabLayoutApplyRequest(msg);
     return (
       this.dispatchWorkspaceStateMessage(msg) ??
       this.dispatchWorkspaceLabelMessage(msg) ??
@@ -4447,6 +4450,31 @@ export class Session {
         },
       });
       emitResponse(false, null, getErrorMessageOr(error, "Failed to pin workspace"));
+    }
+  }
+
+  private async handleWorkspaceTabLayoutApplyRequest(
+    request: Extract<SessionInboundMessage, { type: "workspace.tabs.apply.request" }>,
+  ): Promise<void> {
+    const { requestId, workspaceId, seed, operations, desktop } = request;
+    try {
+      const state = await this.workspaceRegistry.applyTabLayout({
+        workspaceId,
+        seed,
+        operations,
+        syncSplits: () =>
+          syncsWorkspaceSplits(this.daemonConfigStore.get().workspaceSplitSync ?? "off", desktop),
+      });
+      this.emit({
+        type: "workspace.tabs.apply.response",
+        payload: { requestId, state, error: null },
+      });
+    } catch (cause) {
+      const error = getErrorMessageOr(cause, "Failed to update workspace tabs");
+      this.emit({
+        type: "workspace.tabs.apply.response",
+        payload: { requestId, state: null, error },
+      });
     }
   }
 
@@ -6214,6 +6242,7 @@ export class Session {
       title: workspace.title,
       pinnedAt: workspace.pinnedAt,
       pinnedOrder: workspace.pinnedOrder,
+      tabLayout: workspace.tabLayout,
       ...(workspace.labels && workspace.labels.length > 0 ? { labels: workspace.labels } : {}),
       metadata: workspace.metadata,
       background: workspace.background,
@@ -6315,6 +6344,7 @@ export class Session {
       title: result.workspace.title,
       pinnedAt: result.workspace.pinnedAt,
       pinnedOrder: result.workspace.pinnedOrder,
+      tabLayout: result.workspace.tabLayout,
       ...(result.workspace.labels && result.workspace.labels.length > 0
         ? { labels: result.workspace.labels }
         : {}),

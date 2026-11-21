@@ -3831,6 +3831,20 @@ export class DaemonClient {
     return { pinnedAt: payload.pinnedAt };
   }
 
+  async applyWorkspaceTabLayout(
+    input: Omit<
+      Extract<SessionInboundMessage, { type: "workspace.tabs.apply.request" }>,
+      "type" | "requestId"
+    >,
+  ) {
+    const payload =
+      await this.sendNamespacedCorrelatedSessionRequest<"workspace.tabs.apply.response">({
+        message: { type: "workspace.tabs.apply.request", ...input },
+      });
+    if (!payload.state) throw new Error(payload.error ?? "Workspace tab layout unavailable");
+    return payload.state;
+  }
+
   async setWorkspacePinnedOrder(
     workspaceIds: string[],
     legacyWorkspaceIds?: string[],

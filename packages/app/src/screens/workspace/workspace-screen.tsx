@@ -3,6 +3,7 @@ import {
   type WorkspaceCompactHeaderTabs,
 } from "./adaptive-workspace-chrome";
 import { planTimelineTailFetch } from "@/timeline/timeline-sync-plan";
+import { useWorkspaceTabSync } from "@/hooks/use-workspace-tab-sync";
 import { useHostFeature } from "@/runtime/host-features";
 import {
   AssistantFileLinkResolverProvider,
@@ -1361,6 +1362,16 @@ function WorkspaceScreenContent({
   });
   const lastMainPaneId = lastMainPaneRef.current.paneId;
   const hasHydratedWorkspaceLayoutStore = useWorkspaceLayoutStoreHydrated();
+  const { ready: tabSyncReady, allowsAutoOpenTerminal } = useWorkspaceTabSync({
+    serverId: normalizedServerId,
+    workspaceId: normalizedWorkspaceId,
+    workspaceKey: persistenceKey,
+    client,
+    connected: isConnected,
+    hydrated: hasHydratedWorkspaceLayoutStore,
+    compact: isMobile,
+    workspace: workspaceDescriptor,
+  });
   const workspaceSetupStatus = getWorkspaceSetupStatus(workspaceDescriptor);
   const claimFailedSetupSurface = useWorkspaceSetupStore((state) => state.claimFailedSetupSurface);
   const supportsSetupObservation = useHostFeature(normalizedServerId, "workspaceSetupObservation");
@@ -1567,7 +1578,7 @@ function WorkspaceScreenContent({
     if (!normalizedServerId || !normalizedWorkspaceId || !persistenceKey) {
       return;
     }
-    if (!hasHydratedWorkspaceLayoutStore) {
+    if (!tabSyncReady) {
       return;
     }
 
@@ -1586,7 +1597,7 @@ function WorkspaceScreenContent({
         agentsHydrated: hasHydratedAgents && !isArchiveUndoRunning,
         terminalsHydrated: terminalsQuery.isSuccess,
         knownTerminalIds,
-        standaloneTerminalIds,
+        standaloneTerminalIds: [...standaloneTerminalIds].filter(allowsAutoOpenTerminal),
         hasActivePendingTerminalCreate:
           createTerminalMutation.isPending || pendingTerminalCreateInput !== null,
         hasActivePendingDraftCreate: hasActivePendingDraftCreateInWorkspace,
@@ -1595,7 +1606,8 @@ function WorkspaceScreenContent({
   }, [
     hasHydratedAgents,
     isArchiveUndoRunning,
-    hasHydratedWorkspaceLayoutStore,
+    tabSyncReady,
+    allowsAutoOpenTerminal,
     pendingTerminalCreateInput,
     createTerminalMutation.isPending,
     isRouteFocused,

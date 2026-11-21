@@ -502,6 +502,18 @@ cannot load half of the new order. Pins without a rank come first by pin timesta
 replaces only the slots held by the submitted pins. The first drag can import the client's old
 device order for pins outside those slots. Once the host has a ranked order, it ignores that import.
 
+### Shared workspace tabs
+
+A workspace record can carry its shared tab layout. The first client to open an unseeded workspace
+offers its local layout. The registry serializes subsequent batches of tab operations with its other
+mutations and publishes the resulting revision through workspace updates. This keeps initialization
+and updates in the same atomic write as the workspace record.
+
+Host settings control split syncing through `daemon.workspaceSplitSync` in `config.json`. It
+defaults to `off` and also accepts `desktop` and `all`. Tabs and agent visibility sync in every
+mode. Split replacements contain pane membership and sizes. Focus, per-panel state, Explorer
+chrome, drafts, launcher tabs, commit previews, and embedded browser instances stay on the device.
+
 ### Workspace label catalog
 
 **Path:** `$PASEO_HOME/projects/workspace-labels.json`
