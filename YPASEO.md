@@ -288,7 +288,9 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   directory until one succeeds, on the event loop: with a long PATH (401 entries here, git near the
   end) every `git` the workspace watchers start blocked the loop 27 to 136 ms, which held the
   daemon's event-loop delay near 170 ms and made unloaded agents take minutes to load. Measured on
-  an isolated daemon: median delay 144 ms to 11 ms. Daemon code. Tests
+  an isolated daemon: median delay 144 ms to 11 ms. If the cached path fails to spawn (the file
+  was removed), the wrapper absorbs that child's queued error, drops the cache entry and retries
+  once by bare name (`7a77afa2d`, from the PR review). Daemon code. Tests
   `utils/resolve-spawn-command.test.ts`, `utils/spawn.test.ts`. Upstream: issue
   https://github.com/getpaseo/paseo/issues/10240, PR https://github.com/getpaseo/paseo/pull/10241
   (branch `spawn-resolved-path`); drop when it merges.
