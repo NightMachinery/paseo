@@ -1540,6 +1540,11 @@ export class DaemonClient {
   private consecutiveLivenessFailures = 0;
 
   constructor(private config: DaemonClientConfig) {
+    this.config = {
+      ...config,
+      // YPaseo keeps the pre-v0.17.2 meaning of an agent's steer.
+      capabilities: { [CLIENT_CAPS.agentActiveTurnBehaviors]: false, ...config.capabilities },
+    };
     this.logger = config.logger ?? consoleLogger;
     this.relaySecurityFloorValue = config.e2ee?.minimumMode;
     this.logConnectionPath = isRelayClientWebSocketUrl(this.config.url) ? "relay" : "direct";

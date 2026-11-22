@@ -23,6 +23,7 @@ const { mockTheme } = vi.hoisted(() => ({
 vi.mock("lucide-react-native", () => {
   const icon = (name: string) => () => <span data-icon={name} />;
   return {
+    Archive: icon("archive"),
     Copy: icon("copy"),
     Ellipsis: icon("ellipsis"),
     Globe: icon("globe"),
@@ -58,6 +59,9 @@ vi.mock("@/components/ui/icon-button-chrome", () => ({
 
 vi.mock("@/components/terminal-profile-icon", () => ({ TerminalProfileIcon: () => null }));
 vi.mock("@/hooks/use-daemon-config", () => ({ useDaemonConfig: () => ({ config: null }) }));
+vi.mock("@/hooks/use-active-workspace-archive", () => ({
+  useActiveWorkspaceArchive: () => ({ canArchive: false, archive: vi.fn() }),
+}));
 vi.mock("@/screens/workspace/scripts", () => ({
   useWorkspaceScriptsMenuPages: () => ({ pages: [], trigger: null, needsAttention: false }),
 }));

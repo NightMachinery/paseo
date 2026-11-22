@@ -250,6 +250,16 @@ interface TestDeps {
 }
 
 function buildAgentManagerSpies() {
+  const hasInFlightRun = vi.fn().mockReturnValue(false);
+  const streamAgent = vi.fn(
+    (agentId: string, _prompt: unknown, _options: unknown, start?: ForegroundPromptStart) => {
+      const runs = new AgentRunState();
+      const run = runs.createPendingRun(agentId);
+      runs.settleForegroundStart(run, { status: "started", turnId: `${agentId}-turn` });
+      start?.bind(run);
+      return (async function* noop() {})();
+    },
+  );
   return {
     createAgent: vi.fn(),
     waitForAgentEvent: vi.fn().mockResolvedValue({
@@ -277,22 +287,16 @@ function buildAgentManagerSpies() {
     getPluginTools: () => [],
     effectiveOptionsFor: (_provider: string, own?: Record<string, unknown>) => own ?? {},
     reloadStalePluginSession: async () => {},
-    hasInFlightRun: vi.fn().mockReturnValue(false),
+    hasInFlightRun,
     canSteer: vi.fn().mockReturnValue(false),
     hasPendingPermissions: () => false,
     steerOrReplaceActiveTurn: async () => ({ status: "inactive" as const }),
     tryRunOutOfBand: vi.fn().mockReturnValue(false),
     subscribe: vi.fn().mockReturnValue(() => {}),
     onStop: () => () => {},
-    streamAgent: vi.fn(
-      (agentId: string, _prompt: unknown, _options: unknown, start?: ForegroundPromptStart) => {
-        const runs = new AgentRunState();
-        const run = runs.createPendingRun(agentId);
-        runs.settleForegroundStart(run, { status: "started", turnId: `${agentId}-turn` });
-        start?.bind(run);
-        return (async function* noop() {})();
-      },
-    ),
+    streamAgent,
+    streamAgentIfIdle: (...args: Parameters<typeof streamAgent>) =>
+      hasInFlightRun() ? null : streamAgent(...args),
     respondToPermission: vi.fn(),
     cancelAgentRun: vi.fn(),
     getPendingPermissions: vi.fn(),

@@ -145,6 +145,7 @@ test("a pinned drag updates another browser session on the same host", async ({
     if (!second.workspace) throw new Error(second.error ?? "Failed to seed another workspace");
     await seed.client.setWorkspacePinned(seed.workspaceId, true);
     await seed.client.setWorkspacePinned(second.workspace.id, true);
+    await seed.client.setWorkspacePinnedOrder([second.workspace.id, seed.workspaceId]);
 
     const serverId = getServerId();
     const firstRow = `sidebar-workspace-row-${serverId}:${seed.workspaceId}`;

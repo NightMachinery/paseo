@@ -94,6 +94,7 @@ interface DirectPrompt {
   messageId?: string;
   sessionMode?: string;
   unarchive?: boolean;
+  activeTurnBehavior?: "steer" | "interrupt";
 }
 /** The provider prompt a direct prompt became. Unchanged when nothing was queued. */
 interface JoinedPrompt {
@@ -410,10 +411,10 @@ export function createAgentMessageDelivery(dependencies: Dependencies): AgentMes
       const last = ahead.findLastIndex(isUrgent);
       if (last >= 0) {
         // An urgent prompt carries earlier messages that can enter a running turn.
-        const running = isRunning(recipientId);
-        const messages = ahead
-          .slice(0, last + 1)
-          .filter((message) => !running || !message.waitForIdle);
+        const prior = ahead.slice(0, last + 1);
+        const entersRunningTurn =
+          isRunning(recipientId) && !prior.some((message) => message.urgency === "interrupt");
+        const messages = prior.filter((message) => !entersRunningTurn || !message.waitForIdle);
         await deliver(recipientId, messages, false, stopped);
         return;
       }
@@ -623,9 +624,10 @@ export function createAgentMessageDelivery(dependencies: Dependencies): AgentMes
           : [...(inboxes.get(direct.recipientId)?.messages ?? [])];
       return new Promise<Result>((resolve, reject) => {
         run(direct.recipientId, async () => {
-          const running = isRunning(direct.recipientId);
+          const entersRunningTurn =
+            direct.activeTurnBehavior === "steer" && isRunning(direct.recipientId);
           const riders = ahead.filter(
-            (message) => isQueued(message) && (!running || !message.waitForIdle),
+            (message) => isQueued(message) && (!entersRunningTurn || !message.waitForIdle),
           );
           for (const message of riders) message.state = "claimed";
           let result: Result;

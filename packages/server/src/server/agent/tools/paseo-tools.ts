@@ -636,6 +636,52 @@ export function createPaseoAgentToolManifest(
   return { tools: createToolCatalog(options, "agent").tools };
 }
 
+function createSendAgentPromptInputSchema(scope: "agent" | "top-level", hasDurableQueue: boolean) {
+  const commonSendAgentPromptInputSchema = {
+    agentId: z.string(),
+    prompt: z.string(),
+    sessionMode: z.string().optional().describe("Optional mode to set before running the prompt."),
+  };
+  const agentToAgentSendAgentPromptInputSchema = {
+    ...commonSendAgentPromptInputSchema,
+    activeTurnBehavior: AgentActiveTurnBehaviorSchema.optional().describe(
+      hasDurableQueue
+        ? 'Default "steer" waits for the running turn to end. "interrupt" replaces the running turn. "queue" stores the message and runs it as its own turn after the running turn and earlier queued messages finish.'
+        : 'Default "queue" waits for the running turn to end. "steer" joins the running turn, or replaces it if the provider cannot steer. "interrupt" replaces the running turn.',
+    ),
+    notifyOnFinish: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe(
+        "Get notified when the prompted agent finishes, errors, or needs permission. Set false for explicit reporting or no completion callback.",
+      ),
+  };
+  const topLevelSendAgentPromptInputSchema = {
+    ...commonSendAgentPromptInputSchema,
+    activeTurnBehavior: (hasDurableQueue
+      ? ActiveTurnBehaviorSchema
+      : ActiveTurnBehaviorSchema.exclude(["queue"])
+    )
+      .optional()
+      .describe(
+        hasDurableQueue
+          ? 'Default "interrupt" replaces the running turn. "steer" joins a steerable running turn. "queue" stores the message and runs it as its own turn.'
+          : 'Default "interrupt" replaces the running turn. "steer" joins a steerable running turn.',
+      ),
+    notifyOnFinish: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe(
+        "Agent-scoped only: get notified when the prompted agent finishes, errors, or needs permission.",
+      ),
+  };
+  return scope === "agent"
+    ? agentToAgentSendAgentPromptInputSchema
+    : topLevelSendAgentPromptInputSchema;
+}
+
 function createToolCatalog(
   options: PaseoToolHostDependencies,
   scope: "agent" | "top-level",
@@ -1302,39 +1348,10 @@ function createToolCatalog(
   const legacyTopLevelCreateAgentArgsSchema = z
     .object(legacyTopLevelCreateAgentInputSchema)
     .strict();
-  const commonSendAgentPromptInputSchema = {
-    agentId: z.string(),
-    prompt: z.string(),
-    sessionMode: z.string().optional().describe("Optional mode to set before running the prompt."),
-  };
-  const agentToAgentSendAgentPromptInputSchema = {
-    ...commonSendAgentPromptInputSchema,
-    activeTurnBehavior: AgentActiveTurnBehaviorSchema.optional().describe(
-      'Default "steer" waits for the running turn to end. "interrupt" replaces the running turn. "queue" stores the message and runs it as its own turn after the running turn and earlier queued messages finish.',
-    ),
-    notifyOnFinish: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe(
-        "Get notified when the prompted agent finishes, errors, or needs permission. Set false for explicit reporting or no completion callback.",
-      ),
-  };
-  const topLevelSendAgentPromptInputSchema = {
-    ...commonSendAgentPromptInputSchema,
-    activeTurnBehavior: ActiveTurnBehaviorSchema.optional().describe(
-      'Default "interrupt" replaces the running turn. "steer" joins the running turn if the provider supports it. "queue" stores the message and runs it as its own turn after the running turn and earlier queued messages finish.',
-    ),
-    notifyOnFinish: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe(
-        "Agent-scoped only: get notified when the prompted agent finishes, errors, or needs permission.",
-      ),
-  };
-  const sendAgentPromptInputSchema =
-    scope === "agent" ? agentToAgentSendAgentPromptInputSchema : topLevelSendAgentPromptInputSchema;
+  const sendAgentPromptInputSchema = createSendAgentPromptInputSchema(
+    scope,
+    Boolean(options.messageQueue),
+  );
   const inspectProviderInputSchema = {
     provider: ProviderOrProviderModelInputSchema.describe(
       "Provider ID, optionally with a model ID (for example codex or codex/gpt-5.4).",
@@ -2045,8 +2062,9 @@ function createToolCatalog(
     "send_agent_prompt",
     {
       title: "Send agent prompt",
-      description:
-        'Send a task. Agent callers receive an immediate queued receipt; delivery follows after two quiet seconds per recipient and waits for the current turn to end unless interrupt is requested. With activeTurnBehavior "queue", any caller gets a disposition instead: the prompt starts now if the agent is idle, else it waits in the agent\'s queue and runs as its own turn. Completion reports include the target’s last response by default. Paseo supplies caller identity.',
+      description: options.messageQueue
+        ? 'Send a task. Agent callers get an immediate receipt and the message waits for the current turn to end unless interrupt is requested. Explicit "queue" persists the message to run as its own turn. Completion reports include the target’s last response by default. Paseo supplies caller identity.'
+        : "Send a prompt to an agent. The response describes how the daemon admitted or dispatched the prompt.",
       inputSchema: sendAgentPromptInputSchema,
       outputSchema: {
         success: z.boolean(),
@@ -2097,7 +2115,7 @@ function createToolCatalog(
           );
       }
 
-      if (activeTurnBehavior === "queue") {
+      if (activeTurnBehavior === "queue" && options.messageQueue) {
         const structuredContent = await sendQueuedAgentPrompt({
           agentId,
           prompt,
@@ -2125,8 +2143,11 @@ function createToolCatalog(
                 title: resolveCallerAgent()?.config.title ?? undefined,
               },
               sessionMode,
-              activeTurnBehavior: activeTurnBehavior === "interrupt" ? "interrupt" : "queue",
-              waitForIdle: activeTurnBehavior !== "interrupt",
+              activeTurnBehavior:
+                options.messageQueue && activeTurnBehavior !== "interrupt"
+                  ? "queue"
+                  : activeTurnBehavior,
+              waitForIdle: Boolean(options.messageQueue && activeTurnBehavior !== "interrupt"),
               onDispatch: confirmDispatch,
             });
           } catch (error) {
@@ -2152,6 +2173,8 @@ function createToolCatalog(
         };
       }
 
+      if (activeTurnBehavior === "queue")
+        throw new PaseoToolInputError("Queue needs an agent sender");
       const wasLive = Boolean(agentManager.getAgent(agentId));
       const dispatch = await sendPromptToAgent({
         agentMessages: agentMessages(),

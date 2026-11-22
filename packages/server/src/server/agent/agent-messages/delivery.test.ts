@@ -459,13 +459,18 @@ test("shutdown flushes a dispatch that discovered a concurrent turn during prepa
   expect(modes).toEqual([true, false]);
 });
 
-test("a YPaseo steer stays queued while an interrupt starts its replacement turn", async () => {
+test("a YPaseo steer stays queued while an upstream steer enters the running turn", async () => {
   const clock = createClock();
   let running = true;
+  let notify!: (recipientId: string) => void;
   const sent: string[][] = [];
   const delivery = createAgentMessageDelivery({
     schedule: clock.schedule,
     isRunning: () => running,
+    subscribe(listener) {
+      notify = listener;
+      return () => {};
+    },
     dispatch: async (request) => {
       sent.push([...request.messageIds]);
       return "turn_started";
@@ -480,20 +485,20 @@ test("a YPaseo steer stays queued while an interrupt starts its replacement turn
     prompt: "report",
   };
   const waiting = delivery.enqueue({ ...message, messageId: "wait", waitForIdle: true });
-  const interrupt = delivery.enqueue({
+  const steer = delivery.enqueue({
     ...message,
-    messageId: "interrupt",
-    activeTurnBehavior: "interrupt",
+    messageId: "upstream-steer",
+    activeTurnBehavior: "steer",
   });
 
-  await interrupt.dispatched;
-  expect(sent).toEqual([["interrupt"]]);
+  await steer.dispatched;
+  expect(sent).toEqual([["upstream-steer"]]);
   expect(delivery.hasPending("parent")).toBe(true);
 
   running = false;
-  clock.advance(2000);
+  notify("parent");
   await waiting.dispatched;
-  expect(sent).toEqual([["interrupt"], ["wait"]]);
+  expect(sent).toEqual([["upstream-steer"], ["wait"]]);
   await delivery.close();
 });
 

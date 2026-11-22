@@ -31,7 +31,9 @@ test.describe("Dictation empty result", () => {
       ).toBeVisible();
       await page.getByRole("button", { name: "Retry dictation", exact: true }).click();
 
-      await expect(composerLocator(page)).toHaveValue(TRANSCRIPT);
+      await expect(composerLocator(page)).toHaveValue(
+        `\`\`\`speech-to-text\n${TRANSCRIPT}\n\`\`\`\n`,
+      );
     } finally {
       await agent.cleanup();
     }

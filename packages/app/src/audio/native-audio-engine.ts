@@ -18,6 +18,11 @@ interface MicrophonePermission {
   granted: boolean;
 }
 
+interface CaptureStart {
+  nativeStart?: Promise<boolean>;
+  cancelled: boolean;
+}
+
 /** The surface of `@getpaseo/expo-two-way-audio` the engine drives. */
 export interface TwoWayAudioModule {
   initialize(): Promise<boolean>;
@@ -89,10 +94,7 @@ export function createNativeAudioEngine(
     muted: false,
     destroyed: false,
   };
-  let captureStart: {
-    nativeStart?: Promise<boolean>;
-    cancelled: boolean;
-  } | null = null;
+  let captureStart: CaptureStart | null = null;
 
   const microphoneSubscription = native.addExpoTwoWayAudioEventListener(
     "onMicrophoneData",
@@ -262,7 +264,7 @@ export function createNativeAudioEngine(
     async startCapture() {
       if (refs.captureActive || captureStart) return;
       if (refs.destroyed) throw new Error("Audio engine destroyed");
-      const attempt: NonNullable<typeof captureStart> = { cancelled: false };
+      const attempt: CaptureStart = { cancelled: false };
       captureStart = attempt;
       try {
         await ensureMicrophonePermission();
@@ -292,10 +294,6 @@ export function createNativeAudioEngine(
         }
         if (!isRecording) throw new Error("Microphone capture could not start.");
         refs.captureActive = true;
-      } catch (error) {
-        const wrapped = error instanceof Error ? error : new Error(String(error));
-        if (!attempt.cancelled) callbacks.onError?.(wrapped);
-        throw wrapped;
       } finally {
         captureStart = null;
         releaseSessionIfIdle();

@@ -1127,7 +1127,7 @@ test("advertises client capabilities in hello", async () => {
     clientType: "cli",
     protocolVersion: 1,
     capabilities: {
-      agent_active_turn_behaviors: true,
+      agent_active_turn_behaviors: false,
       all_providers: true,
       selective_agent_timeline: true,
       timeline_replacement_invalidation: true,

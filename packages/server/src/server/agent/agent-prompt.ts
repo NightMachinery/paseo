@@ -408,6 +408,7 @@ export async function sendPromptToAgent(
       messageId,
       sessionMode: params.sessionMode,
       unarchive: params.unarchive,
+      activeTurnBehavior: params.activeTurnBehavior,
     },
     (joined) =>
       sendPreparedPromptToAgent({

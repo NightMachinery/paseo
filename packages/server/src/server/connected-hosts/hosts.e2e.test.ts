@@ -1973,7 +1973,10 @@ test(
       config: { provider: "claude/claude-test", modeId: "full-access" },
       title: "Human recipient",
     });
-    expect(await origin.client.sendAgentMessage(human.id, "HUMAN_PROMPT")).toEqual({});
+    expect(await origin.client.sendAgentMessage(human.id, "HUMAN_PROMPT")).toEqual({
+      disposition: "turn_started",
+      revived: false,
+    });
     expect(
       (await origin.client.fetchAgentTimeline(human.id)).entries.some(
         (row) => row.item.type === "user_message" && row.item.text === "HUMAN_PROMPT",

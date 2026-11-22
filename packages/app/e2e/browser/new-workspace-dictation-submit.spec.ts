@@ -28,6 +28,8 @@ import {
   terminalPromptInput,
 } from "../support/helpers/new-workspace-launch";
 
+test.use({ channel: "chromium", launchOptions: { args: ["--use-fake-device-for-media-stream"] } });
+
 const TRANSCRIPT = "Keep this spoken prompt visible while creating the workspace";
 const WRAPPED_TRANSCRIPT = "```speech-to-text\n" + TRANSCRIPT + "\n```";
 const CREATE_FAILURE = "Synthetic workspace creation failure";
@@ -275,7 +277,7 @@ test("shows dictation failure when the terminal prompt starts it by shortcut", a
 
     const setMicrophonePermission = await controlMicrophonePermission(page);
     await setMicrophonePermission("denied");
-    await terminalPromptInput(page).press("Control+d");
+    await terminalPromptInput(page).press("ControlOrMeta+d");
     await expectDictationPermissionError(page);
   } finally {
     await profiles.restore();

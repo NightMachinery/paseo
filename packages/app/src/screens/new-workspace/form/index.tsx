@@ -398,7 +398,8 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
     : null;
   const projectIcon = useMemo(
     () =>
-      selectedProject ? (
+      scratchWorkspaceTriggerIcon(project.selectedOptionId) ??
+      (selectedProject ? (
         <ProjectIcon
           projectViewKey={selectedProject.viewKey}
           projectName={selectedProject.projectName}
@@ -406,8 +407,8 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
         />
       ) : (
         folderIcon
-      ),
-    [selectedProject, selectedProjectIconUri],
+      )),
+    [project.selectedOptionId, selectedProject, selectedProjectIconUri],
   );
   const hostIcon = useMemo(
     () => <HostStatusDot serverId={host.selectedServerId} />,
@@ -423,7 +424,7 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
       accessibilityLabel="Workspace project"
       tooltip={t("newWorkspace.tooltips.project")}
       shortcutAction="new-workspace"
-      icon={scratchWorkspaceTriggerIcon(project.selectedOptionId) ?? projectIcon}
+      icon={projectIcon}
       value={project.triggerLabel}
       onPress={project.open}
       disabled={isPending}

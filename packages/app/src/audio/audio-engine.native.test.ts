@@ -26,7 +26,6 @@ const callbacks = {
   onVolumeLevel: vi.fn(),
   onHeadsetMicrophoneFallback: vi.fn(),
   onInterruption: vi.fn(),
-  onError: vi.fn(),
 };
 
 function createEngine() {
@@ -91,7 +90,6 @@ test("stopping capture during route setup cancels a late native start", async ()
 
   expect(native.toggleRecording).toHaveBeenCalledTimes(2);
   expect(native.toggleRecording).toHaveBeenLastCalledWith(false);
-  expect(callbacks.onError).not.toHaveBeenCalled();
   emit("onMicrophoneData", { data: Uint8Array.of(1, 0) });
   expect(callbacks.onCaptureData).not.toHaveBeenCalled();
   await engine.destroy();

@@ -158,6 +158,7 @@ describe("WorkspaceDirectory with the YPaseo subagent attention rule", () => {
       listProviderSubagentActivity: async () => [],
       listTerminalActivityContributions: async () => [],
       isProviderVisibleToClient: () => true,
+      getArchivingAt: () => null,
       buildWorkspaceDescriptor: async ({ workspace }) => ({
         id: workspace.workspaceId,
         projectId: workspace.projectId,
