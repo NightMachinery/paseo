@@ -250,11 +250,11 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   tool call was rejected and to stop. The YPaseo client leaves the
   `agent_active_turn_behaviors` capability off so an agent's ordinary `steer`
   waits for the running turn to end. Permanent while this fork exists.
-- **Requests to an unloaded agent do not wait for its history replay.** Three commits,
-  written for upstream on `origin/main` (branch `unloaded-agent-requests`): upstream PR
-  #10140, part of issue #8314. The Claude history replay reads in batches and yields by time
-  (`providers/claude/transcript-history.ts` and `agent.ts`), so a long session loads in a few
-  hundred event-loop turns instead of over a hundred thousand. A user send with a `messageId` to
+- **Requests to an unloaded agent do not wait for its history replay.** Upstream
+  PR #10140 (branch `unloaded-agent-requests`), part of issue #8314.
+  Upstream #10369 in v0.17.2 replaces the fork's transcript reader with
+  buffered, time-sliced reads. YPaseo still slices timeline ingestion by
+  elapsed time in `providers/claude/agent.ts`. A user send with a `messageId` to
   an agent that is not loaded is saved beside its receipt (`message-receipts/index.ts`, under
   `$PASEO_HOME/agent-requests/accepted/`), answered with `deliveryStatus: "queued"` and
   `revived: true`, then delivered after the load by `agent/user-message-delivery.ts`; a failed
@@ -264,8 +264,8 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   behavior of #10026 goes through `deliverUserMessage` too, so a `queue` send to an unloaded
   agent is answered before the load and has no `disposition`. Daemon code. Tests
   `daemon-e2e/unloaded-agent-requests.test.ts`, `message-receipts/index.test.ts`,
-  `providers/claude/agent.history-load.test.ts`. Drop when upstream merges it; until #10026
-  merges, a conflict in the send handler keeps the queue branch for agent senders only.
+  `providers/claude/agent.history-load.test.ts`. Drop these parts when upstream
+  ships equivalent send and history-load behavior.
 - **Cmd+Shift+O opens the focused agent's transcript (desktop, local or registered host).**
   `packages/app/src/ypaseo/open-transcript*.ts(x)`: the binding (Ctrl+Shift+O off macOS,
   rebindable, listed under General) is spread into `SHORTCUT_BINDINGS` in
