@@ -229,21 +229,15 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   settings, Sync workspace splits offers Off (the default), Desktops only, or
   All devices. Older hosts keep the local layout. Proposed upstream in PR
   #10420 (Discussion #10419); related: issue #5886, PR #5887.
-- **Agent messages wait for the running turn to end.** Upstream #9757, cherry-picked from
-  `origin/main` (41c294c78) because no release tag contains it yet:
-  `packages/server/src/server/agent/agent-messages/delivery.ts` holds agent-originated
-  messages and finish notifications (`steer`, the default for agent callers) until the
-  recipient's turn ends, then dispatches them `idleOnly`; only an explicit `interrupt`
-  replaces a running turn. Wired in `websocket-server.ts`, with `agent-prompt.ts` and
-  `agent-manager.ts` changes. Daemon code. Drop when an upstream release that contains
-  #9757 is merged.
 - **Queue a message until the running turn ends (`--behavior queue`).** A daemon-owned
   per-agent queue (`packages/server/src/server/agent/agent-message-queue.ts`, persisted in
   `$PASEO_HOME/agent-message-queue/`) behind `AgentManager.streamAgentIfIdle`; CLI
   `paseo send --behavior queue`, MCP `activeTurnBehavior: "queue"`, receipts with
   `disposition`/`queuePosition`/`revived`, `queuedMessages` in snapshots, `paseo inspect` and
   `get_agent_status`, and host `features` in `paseo daemon status --json`. Gated on
-  `server_info.features.agentMessageQueue`. Needs the #9757 entry above. Tests
+  `server_info.features.agentMessageQueue`. Upstream v0.17.2 handles ordinary agent
+  messages through its own dispatcher. YPaseo clients and MCP keep explicit
+  `queue` durable and start one turn per message. Tests
   `agent-message-queue.test.ts`, `daemon-e2e/message-queue.test.ts`. Upstream PR #10026
   (branch `send-queue-behavior`, issue #9853); drop when upstream merges it.
 - **`paseo send` steers by default, or follows `$PASEO_SEND_BEHAVIOR`.**
@@ -253,7 +247,9 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   the variable when set (`interrupt`, `steer` or `queue`; any other value is an error and
   nothing is sent), else `steer` for every caller, where upstream interrupts for callers that
   are not agents. An interrupt during a Claude tool call makes Claude Code tell the agent its
-  tool call was rejected and to stop. Permanent while this fork exists.
+  tool call was rejected and to stop. The YPaseo client leaves the
+  `agent_active_turn_behaviors` capability off so an agent's ordinary `steer`
+  waits for the running turn to end. Permanent while this fork exists.
 - **Requests to an unloaded agent do not wait for its history replay.** Three commits,
   written for upstream on `origin/main` (branch `unloaded-agent-requests`): upstream PR
   #10140, part of issue #8314. The Claude history replay reads in batches and yields by time
