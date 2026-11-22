@@ -16,7 +16,7 @@ describe("canonical CLI surface", () => {
     expect(send.opts().behavior).toBe("queue");
     send.exitOverride().configureOutput({ writeErr: () => {} });
     await expect(
-      send.parseAsync(["target", "message", "--behavior", "later"], { from: "user" }),
+      send.parseAsync(["target", "message", "--behavior", "wait"], { from: "user" }),
     ).rejects.toThrow();
   });
 

@@ -125,6 +125,8 @@ export class ConnectionSubscriptions extends OwnedSubscriptions {
 // Protocol support belongs to the installed client. Only browser hosting needs
 // a resource supplied by the caller. Keep this exhaustive as the protocol evolves.
 export const DEFAULT_CLIENT_CAPABILITIES = {
+  // YPaseo keeps the pre-v0.17.2 meaning of an agent's steer.
+  [CLIENT_CAPS.agentActiveTurnBehaviors]: false,
   [CLIENT_CAPS.terminalChunkedReplay]: true,
   [CLIENT_CAPS.binaryChunkingV1]: true,
   [CLIENT_CAPS.helloRejection]: true,

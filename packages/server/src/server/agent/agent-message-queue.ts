@@ -7,6 +7,7 @@ import type { AgentManager } from "./agent-manager.js";
 import {
   AgentTurnBusyError,
   sendPreparedPromptToAgent,
+  waitForAgentRunStartWithTimeout,
   type PromptDispatchDisposition,
 } from "./agent-prompt.js";
 import type { AgentPromptInput } from "./agent-sdk-types.js";
@@ -364,21 +365,24 @@ export function createDaemonAgentMessageQueue(input: {
   const { agentManager, agentStorage, logger } = input;
   return createAgentMessageQueue({
     store: createJsonMessageQueueStore(path.join(input.paseoHome, "agent-message-queue")),
-    dispatch: async (message) =>
-      (
-        await sendPreparedPromptToAgent({
-          agentManager,
-          agentStorage,
-          agentId: message.agentId,
-          prompt: message.prompt,
-          sessionMode: message.sessionMode,
-          idleOnly: true,
-          unarchive: message.unarchive,
-          beforeDispatch: message.beforeDispatch,
-          runOptions: { clientMessageId: message.messageId },
-          logger,
-        })
-      ).disposition,
+    dispatch: async (message) => {
+      const dispatch = await sendPreparedPromptToAgent({
+        agentManager,
+        agentStorage,
+        agentId: message.agentId,
+        prompt: message.prompt,
+        sessionMode: message.sessionMode,
+        idleOnly: true,
+        unarchive: message.unarchive,
+        beforeDispatch: message.beforeDispatch,
+        runOptions: { clientMessageId: message.messageId },
+        logger,
+      });
+      if ("started" in dispatch) {
+        await waitForAgentRunStartWithTimeout(agentManager, message.agentId, dispatch.started);
+      }
+      return dispatch.disposition;
+    },
     isRunning: (agentId) => agentManager.hasInFlightRun(agentId),
     hasPendingPermission: (agentId) => agentManager.hasPendingPermissions(agentId),
     isActive: async (agentId) => {

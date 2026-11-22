@@ -13,7 +13,6 @@ import type {
 
 export function useDictationAudioSource(config: DictationAudioSourceConfig): DictationAudioSource {
   const onPcmSegmentRef = useRef(config.onPcmSegment);
-  const onErrorRef = useRef(config.onError);
   const onInterruptionRef = useRef(config.onInterruption);
   const { t } = useTranslation();
   const toast = useToast();
@@ -40,9 +39,6 @@ export function useDictationAudioSource(config: DictationAudioSourceConfig): Dic
         onVolumeLevel: (level) => {
           setVolume(level);
         },
-        onError: (error) => {
-          onErrorRef.current?.(error);
-        },
         onInterruption: () => {
           onInterruptionRef.current?.();
         },
@@ -56,9 +52,8 @@ export function useDictationAudioSource(config: DictationAudioSourceConfig): Dic
 
   useEffect(() => {
     onPcmSegmentRef.current = config.onPcmSegment;
-    onErrorRef.current = config.onError;
     onInterruptionRef.current = config.onInterruption;
-  }, [config.onPcmSegment, config.onError, config.onInterruption]);
+  }, [config.onPcmSegment, config.onInterruption]);
 
   useEffect(() => {
     fallbackNoticeRef.current = () => {
@@ -67,9 +62,7 @@ export function useDictationAudioSource(config: DictationAudioSourceConfig): Dic
   }, [headsetFallbackNotice, toast]);
 
   const start = useCallback(async () => {
-    const engine = getOrCreateEngine();
-    await engine.initialize();
-    await engine.startCapture();
+    await getOrCreateEngine().startCapture();
   }, [getOrCreateEngine]);
 
   const stop = useCallback(async () => {

@@ -14,7 +14,7 @@ vi.mock("../../utils/client.js", () => ({
 }));
 
 import { connectToDaemon } from "../../utils/client.js";
-import { addSendOptions, runSendCommand } from "./send.js";
+import { addSendOptions, buildNoWaitResult, runSendCommand } from "./send.js";
 
 describe("paseo send --behavior queue", () => {
   beforeEach(() => {
@@ -123,5 +123,30 @@ describe("YPaseo: paseo send's default behavior", () => {
 
   it("names the variable in --behavior's help", () => {
     expect(addSendOptions(new Command("send")).helpInformation()).toContain("$PASEO_SEND_BEHAVIOR");
+  });
+});
+
+describe("buildNoWaitResult", () => {
+  it("reports the behavior the host applied to an agent's message", () => {
+    expect(
+      buildNoWaitResult(agentId, {
+        deliveryStatus: "queued",
+        activeTurnBehavior: "steer",
+        guidance: "The agent is idle, so your message starts a turn now.",
+      }),
+    ).toEqual({
+      agentId,
+      status: "queued",
+      activeTurnBehavior: "steer",
+      message: "The agent is idle, so your message starts a turn now.",
+    });
+  });
+
+  it("leaves the behavior out when the host does not report one", () => {
+    expect(buildNoWaitResult(agentId, {})).toEqual({
+      agentId,
+      status: "sent",
+      message: "Message sent, not waiting for completion",
+    });
   });
 });

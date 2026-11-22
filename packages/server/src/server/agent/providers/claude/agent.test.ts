@@ -544,21 +544,20 @@ describe("ClaudeAgentClient.fetchCatalog", () => {
         return models.find((model) => model.id === modelId)?.thinkingOptions?.map(({ id }) => id);
       };
 
-      expect(getThinkingIds("claude-opus-5")).toContain("ultracode");
+      expect(getThinkingIds("claude-opus-5")).not.toContain("ultracode");
       expect(getThinkingIds("claude-mythos-5-1")).toEqual([
         "low",
         "medium",
         "high",
         "xhigh",
         "max",
-        "ultracode",
       ]);
-      expect(getThinkingIds("claude-fable-5-1")).toContain("ultracode");
-      expect(getThinkingIds("claude-fable-5")).toContain("ultracode");
-      expect(getThinkingIds("claude-opus-4-8[1m]")).toContain("ultracode");
-      expect(getThinkingIds("claude-opus-4-8")).toContain("ultracode");
+      expect(getThinkingIds("claude-fable-5-1")).not.toContain("ultracode");
+      expect(getThinkingIds("claude-fable-5")).not.toContain("ultracode");
+      expect(getThinkingIds("claude-opus-4-8[1m]")).not.toContain("ultracode");
+      expect(getThinkingIds("claude-opus-4-8")).not.toContain("ultracode");
       expect(getThinkingIds("claude-sonnet-5")).toContain("xhigh");
-      expect(getThinkingIds("claude-sonnet-5")).toContain("ultracode");
+      expect(getThinkingIds("claude-sonnet-5")).not.toContain("ultracode");
       expect(getThinkingIds("claude-haiku-5-5")).toEqual([
         "off",
         "low",
@@ -566,12 +565,11 @@ describe("ClaudeAgentClient.fetchCatalog", () => {
         "high",
         "xhigh",
         "max",
-        "ultracode",
       ]);
       expect(getThinkingIds("claude-sonnet-5-5")).toContain("xhigh");
       expect(getThinkingIds("claude-sonnet-5-5")).not.toContain("off");
-      expect(getThinkingIds("claude-opus-4-7[1m]")).toContain("ultracode");
-      expect(getThinkingIds("claude-opus-4-7")).toContain("ultracode");
+      expect(getThinkingIds("claude-opus-4-7[1m]")).not.toContain("ultracode");
+      expect(getThinkingIds("claude-opus-4-7")).not.toContain("ultracode");
       expect(getThinkingIds("claude-sonnet-4-6")).not.toContain("ultracode");
     } finally {
       await fs.rm(emptyConfigDir, { recursive: true, force: true });
@@ -1182,8 +1180,8 @@ describe("ClaudeAgentSession features", () => {
     await session.close();
   });
 
-  test("lists fast mode only for supported Opus models", async () => {
-    const client = new ClaudeAgentClient({ logger, resolveBinary: async () => "/test/claude/bin" });
+  test("lists Claude controls by model capability", async () => {
+    const client = new ClaudeAgentClient({ logger, resolveVersion: async () => "2.1.284" });
 
     await expect(
       client.listControls({
@@ -1192,7 +1190,10 @@ describe("ClaudeAgentSession features", () => {
         model: "claude-opus-4-8",
       }),
     ).resolves.toEqual({
-      controls: [expect.objectContaining({ key: "fast_mode", type: "toggle" })],
+      controls: [
+        expect.objectContaining({ key: "fast_mode", type: "toggle" }),
+        expect.objectContaining({ key: "ultracode", type: "toggle" }),
+      ],
       options: {},
     });
 
@@ -1203,7 +1204,10 @@ describe("ClaudeAgentSession features", () => {
         model: "claude-opus-4-8[1m]",
       }),
     ).resolves.toEqual({
-      controls: [expect.objectContaining({ key: "fast_mode", type: "toggle" })],
+      controls: [
+        expect.objectContaining({ key: "fast_mode", type: "toggle" }),
+        expect.objectContaining({ key: "ultracode", type: "toggle" }),
+      ],
       options: {},
     });
 
@@ -1214,7 +1218,10 @@ describe("ClaudeAgentSession features", () => {
         model: "claude-opus-4-8-20260101",
       }),
     ).resolves.toEqual({
-      controls: [expect.objectContaining({ key: "fast_mode", type: "toggle" })],
+      controls: [
+        expect.objectContaining({ key: "fast_mode", type: "toggle" }),
+        expect.objectContaining({ key: "ultracode", type: "toggle" }),
+      ],
       options: {},
     });
 
@@ -1225,7 +1232,10 @@ describe("ClaudeAgentSession features", () => {
         model: "claude-opus-5",
       }),
     ).resolves.toEqual({
-      controls: [expect.objectContaining({ key: "fast_mode", type: "toggle" })],
+      controls: [
+        expect.objectContaining({ key: "fast_mode", type: "toggle" }),
+        expect.objectContaining({ key: "ultracode", type: "toggle" }),
+      ],
       options: {},
     });
 
@@ -1235,7 +1245,10 @@ describe("ClaudeAgentSession features", () => {
         cwd: process.cwd(),
         model: "openrouter/anthropic/claude-opus-4-8",
       }),
-    ).resolves.toEqual({ controls: [], options: {} });
+    ).resolves.toEqual({
+      controls: [expect.objectContaining({ key: "ultracode", type: "toggle" })],
+      options: {},
+    });
 
     await expect(
       client.listControls({
@@ -1243,7 +1256,10 @@ describe("ClaudeAgentSession features", () => {
         cwd: process.cwd(),
         model: "claude-sonnet-5",
       }),
-    ).resolves.toEqual({ controls: [], options: {} });
+    ).resolves.toEqual({
+      controls: [expect.objectContaining({ key: "ultracode", type: "toggle" })],
+      options: {},
+    });
 
     await expect(
       client.listControls({

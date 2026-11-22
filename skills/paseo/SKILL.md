@@ -84,13 +84,19 @@ Detach is an explicit user action in the subagents track, not an agent tool. A c
 
 Agent-scoped `create_agent` defaults `notifyOnFinish` to true. Set it to `false` when you want explicit reporting or no completion callback.
 
-**`send_agent_prompt`** — `{ agentId, prompt, activeTurnBehavior? }`. Use for follow-ups to an existing agent. Agent-scoped calls default to `steer`; top-level calls default to `interrupt`. For agent-scoped calls, `steer` waits until the recipient's current turn ends, and only `interrupt` stops a running turn. For top-level calls, `steer` joins the running turn and falls back to interruption when unavailable. CLI agent sends use the same defaults and accept `--behavior steer|interrupt|queue`. `queue`, from any caller, holds the prompt in the recipient's durable queue and runs it as its own turn after the running turn and earlier queued prompts end; it returns `disposition` (`turn_started` or `queued` with `queuePosition`) instead of the batched receipt. Agent-scoped calls return a queued receipt immediately; messages to each recipient deliver together after two quiet seconds, or after the recipient's turn ends if it is running. Top-level calls return after dispatch acknowledgement. Agent-scoped calls default `notifyOnFinish` to true; top-level calls have no parent callback.
-
 **`update_agent`** — `{ agentId, name?, labels?, settings? }`. Use `settings` for runtime changes on an existing agent: `modeId`, `model`, `thinkingOptionId`, and provider-specific `features`. For Codex fast mode, pass `settings: { features: { "fast_mode": true } }`.
 
 **`list_agents`** — filter by `cwd`, `statuses`, `sinceHours`, `includeArchived`; set `includeBackground: true` to include agents in background workspaces.
 
 **`archive_agent`** — `{ agentId }`. Interrupts if running, removes from active list.
+
+## Sending prompts to agents
+
+**`send_agent_prompt`** — `{ agentId, prompt, activeTurnBehavior? }`. Sends a follow-up to an existing agent and returns at once.
+
+Agent-scoped sends wait for the recipient's turn to finish by default. An explicit `steer` also waits on YPaseo. Use `interrupt` to replace the running turn. Use an explicit `queue` on YPaseo to persist the message and run it as its own turn after earlier queued messages finish.
+
+Read the response's `guidance` to see when the prompt is expected to arrive. With the default `notifyOnFinish`, continue working and wait for the finish, permission, or error notification.
 
 ## Agent profiles and provider discovery
 

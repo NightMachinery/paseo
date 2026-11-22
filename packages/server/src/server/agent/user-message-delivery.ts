@@ -5,8 +5,8 @@ import { z } from "zod";
 import { ensureAgentLoaded } from "./agent-loading.js";
 import type { AgentManager } from "./agent-manager.js";
 import type { AgentMessageQueue, QueueSubmitResult } from "./agent-message-queue.js";
+import type { AgentMessageDelivery } from "./agent-messages/index.js";
 import {
-  dispositionStartsTurn,
   preparePromptForDispatch,
   sendPromptToAgent,
   waitForAgentRunStartWithTimeout,
@@ -31,6 +31,7 @@ export interface UserMessageDeliveryDeps {
   agentManager: AgentManager;
   agentStorage: AgentStorage;
   logger: Logger;
+  agentMessages: AgentMessageDelivery;
   /** Takes messages sent with the queue behavior. */
   messageQueue?: Pick<AgentMessageQueue, "submit">;
 }
@@ -67,7 +68,7 @@ export async function deliverUserMessage(
       prompt: message.prompt,
       messageId: message.messageId,
     });
-    const outcome = await deps.messageQueue.submit({
+    return await deps.messageQueue.submit({
       agentId: message.agentId,
       messageId: prepared.messageId ?? randomUUID(),
       prompt: prepared.prompt,
@@ -75,12 +76,9 @@ export async function deliverUserMessage(
       sessionMode: message.sessionMode,
       beforeAdmission: options.beforeDispatch,
     });
-    if (outcome.disposition !== "queued" && dispositionStartsTurn(outcome.disposition)) {
-      await waitForAgentRunStartWithTimeout(agentManager, message.agentId, options.signal);
-    }
-    return outcome;
   }
   const result = await sendPromptToAgent({
+    agentMessages: deps.agentMessages,
     agentManager,
     agentStorage,
     agentId: message.agentId,
@@ -93,10 +91,15 @@ export async function deliverUserMessage(
     beforeDispatch: options.beforeDispatch,
     logger,
   });
-  if (dispositionStartsTurn(result.disposition)) {
-    await waitForAgentRunStartWithTimeout(agentManager, message.agentId, options.signal);
+  if ("started" in result) {
+    await waitForAgentRunStartWithTimeout(
+      agentManager,
+      message.agentId,
+      result.started,
+      options.signal,
+    );
   }
-  return result;
+  return { disposition: result.disposition };
 }
 
 /** The agent's error for a message that was accepted but never reached its provider. */

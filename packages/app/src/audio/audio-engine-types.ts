@@ -4,7 +4,6 @@ export interface AudioEngineCallbacks {
   onInterruption?(): void;
   onHeadsetMicrophoneFallback?(): void;
   onCaptureAvailabilityChange?(available: boolean): void;
-  onError?(error: Error): void;
 }
 
 export interface AudioPlaybackSource {
@@ -31,4 +30,22 @@ export interface AudioEngine {
 export interface AudioEngineOptions {
   traceLabel?: string;
   captureMode?: "conversation" | "dictation";
+}
+
+export type AudioCaptureStartFailure =
+  | "permissionDenied"
+  | "insecureContext"
+  | "unsupported"
+  | "noMicrophone"
+  | "startFailed";
+
+export class AudioCaptureStartError extends Error {
+  constructor(
+    readonly reason: AudioCaptureStartFailure,
+    message: string,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = "AudioCaptureStartError";
+  }
 }

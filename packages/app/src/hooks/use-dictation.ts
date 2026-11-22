@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { AudioCaptureStartError, type AudioCaptureStartFailure } from "@/audio";
 import { DictationStreamSender } from "@/dictation/dictation-stream-sender";
 import {
   resolveDictationEmptyReason,
@@ -39,6 +40,8 @@ export function useDictation(options: UseDictationOptions): UseDictationResult {
   const [partialTranscript, setPartialTranscript] = useState("");
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [startError, setStartError] = useState<AudioCaptureStartFailure | null>(null);
+  const clearStartError = useCallback(() => setStartError(null), []);
   const [status, setStatus] = useState<DictationStatus>("idle");
   const [emptyReason, setEmptyReason] = useState<DictationEmptyReason | null>(null);
   const latestPartialTranscriptRef = useRef("");
@@ -348,6 +351,7 @@ export function useDictation(options: UseDictationOptions): UseDictationResult {
 
     actionGateRef.current.starting = true;
     setError(null);
+    setStartError(null);
     setPartialTranscript("");
     setDuration(0);
     setIsProcessing(false);
@@ -355,8 +359,10 @@ export function useDictation(options: UseDictationOptions): UseDictationResult {
     clearStreamingState();
     resetHeardSound();
 
+    let captureStarted = false;
     try {
       await audio.start();
+      captureStarted = true;
       isRecordingRef.current = true;
       setIsRecording(true);
       if (enableDuration) {
@@ -371,7 +377,12 @@ export function useDictation(options: UseDictationOptions): UseDictationResult {
       isRecordingRef.current = false;
       setIsRecording(false);
       setStatus("idle");
-      reportError(err, "Failed to start dictation");
+      if (captureStarted) {
+        reportError(err, "Failed to start dictation stream");
+      } else {
+        console.error("[useDictation] Failed to start dictation capture", err);
+        setStartError(err instanceof AudioCaptureStartError ? err.reason : "startFailed");
+      }
     } finally {
       actionGateRef.current.starting = false;
     }
@@ -526,6 +537,7 @@ export function useDictation(options: UseDictationOptions): UseDictationResult {
     stopDurationTracking();
     setDuration(0);
     setError(null);
+    setStartError(null);
     setStatus("idle");
     clearStreamingState();
   }, [clearStreamingState, stopDurationTracking]);
@@ -555,6 +567,8 @@ export function useDictation(options: UseDictationOptions): UseDictationResult {
     volume: audio.volume,
     duration,
     error,
+    startError,
+    clearStartError,
     status: effectiveStatus,
     emptyReason,
     isHearingSilence: isRecording && effectiveStatus === "recording" && isHearingSilence,

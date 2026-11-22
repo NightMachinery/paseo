@@ -1,7 +1,8 @@
 import { type Command, Option } from "commander";
-import type { ActiveTurnBehavior, SendDisposition } from "@getpaseo/protocol/messages";
+import type { AgentActiveTurnBehavior, SendDisposition } from "@getpaseo/protocol/messages";
 import { collectMultiple } from "../../utils/command-options.js";
 import { connectToDaemon } from "../../utils/client.js";
+import type { SendMessageReceipt } from "@getpaseo/client/internal/daemon-client";
 import type {
   CommandOptions,
   SingleResult,
@@ -15,6 +16,8 @@ import { extname, resolve } from "node:path";
 export interface AgentSendResult {
   agentId: string;
   status: "queued" | "sent" | "completed" | "timeout" | "permission" | "error";
+  /** What the host applied to an agent's message with a running turn. */
+  activeTurnBehavior?: AgentActiveTurnBehavior;
   message: string;
   /** What the daemon did with the message. Absent for agent sends in the batched window. */
   disposition?: SendDisposition;
@@ -35,14 +38,14 @@ export const agentSendSchema: OutputSchema<AgentSendResult> = {
 };
 
 export interface AgentSendOptions extends CommandOptions {
-  behavior?: ActiveTurnBehavior;
+  behavior?: AgentActiveTurnBehavior;
   wait?: boolean;
   image?: string[];
   prompt?: string;
   promptFile?: string;
 }
 
-const SEND_BEHAVIORS = ["interrupt", "steer", "queue"] as const satisfies ActiveTurnBehavior[];
+const SEND_BEHAVIORS = ["interrupt", "steer", "queue"] as const satisfies AgentActiveTurnBehavior[];
 
 /** YPaseo: the default for `--behavior` when the flag is absent. */
 export const SEND_BEHAVIOR_ENV = "PASEO_SEND_BEHAVIOR";
@@ -54,14 +57,14 @@ export const SEND_BEHAVIOR_ENV = "PASEO_SEND_BEHAVIOR";
  * variable counts as unset.
  */
 export function resolveSendBehavior(
-  explicit: ActiveTurnBehavior | undefined,
+  explicit: AgentActiveTurnBehavior | undefined,
   env: NodeJS.ProcessEnv = process.env,
-): ActiveTurnBehavior {
+): AgentActiveTurnBehavior {
   if (explicit) return explicit;
   const fromEnv = env[SEND_BEHAVIOR_ENV]?.trim();
   if (!fromEnv) return "steer";
   if ((SEND_BEHAVIORS as readonly string[]).includes(fromEnv)) {
-    return fromEnv as ActiveTurnBehavior;
+    return fromEnv as AgentActiveTurnBehavior;
   }
   const error: CommandError = {
     code: "INVALID_SEND_BEHAVIOR",
@@ -205,19 +208,35 @@ function buildSendResult(agentIdArg: string, state: SendWaitState): AgentSendRes
   return { agentId, status: "completed", message: "Agent completed processing the message" };
 }
 
-function describeReceipt(receipt: {
-  deliveryStatus?: "queued";
-  disposition?: SendDisposition;
-  queuePosition?: number;
-  revived?: boolean;
-}): string {
-  if (receipt.revived && receipt.deliveryStatus === "queued")
+export function buildNoWaitResult(agentId: string, receipt: SendMessageReceipt): AgentSendResult {
+  return {
+    agentId,
+    status: receipt.deliveryStatus ?? (receipt.disposition === "queued" ? "queued" : "sent"),
+    ...(receipt.activeTurnBehavior ? { activeTurnBehavior: receipt.activeTurnBehavior } : {}),
+    ...sendReceiptFields(receipt),
+    message: sendReceiptMessage(receipt),
+  };
+}
+
+function sendReceiptFields(receipt: SendMessageReceipt) {
+  return {
+    ...(receipt.disposition ? { disposition: receipt.disposition } : {}),
+    ...(receipt.queuePosition ? { queuePosition: receipt.queuePosition } : {}),
+    ...(receipt.revived !== undefined ? { revived: receipt.revived } : {}),
+  };
+}
+
+function sendReceiptMessage(receipt: SendMessageReceipt): string {
+  if (receipt.revived && receipt.deliveryStatus === "queued") {
     return "Message saved; the agent is loading and receives it once loaded, not waiting for completion";
-  if (receipt.deliveryStatus === "queued")
-    return "Message queued for delivery after two quiet seconds and the current turn ends, unless interrupt was requested";
-  if (receipt.disposition === "queued")
+  }
+  if (receipt.disposition === "queued") {
     return `Message queued at position ${receipt.queuePosition ?? "?"}; it runs as its own turn after the running turn and earlier queued messages end`;
-  return "Message sent, not waiting for completion";
+  }
+  if (receipt.deliveryStatus !== "queued") return "Message sent, not waiting for completion";
+  // COMPAT(agentActiveTurnBehaviors): added in v0.17.2, remove after 2027-05-22 once daemon
+  // floor >= v0.17.2. Older hosts return no guidance.
+  return receipt.guidance ?? "Message queued for delivery after the current turn ends";
 }
 
 export async function runSendCommand(
@@ -259,24 +278,13 @@ export async function runSendCommand(
       activeTurnBehavior,
     });
 
-    const receiptFields = {
-      ...(receipt.disposition ? { disposition: receipt.disposition } : {}),
-      ...(receipt.queuePosition ? { queuePosition: receipt.queuePosition } : {}),
-      ...(receipt.revived !== undefined ? { revived: receipt.revived } : {}),
-    };
-
     // If --no-wait, return immediately
     if (options.wait === false) {
       await client.close();
 
       return {
         type: "single",
-        data: {
-          agentId: agentIdArg,
-          status: receipt.deliveryStatus ?? (receipt.disposition === "queued" ? "queued" : "sent"),
-          message: describeReceipt(receipt),
-          ...receiptFields,
-        },
+        data: buildNoWaitResult(agentIdArg, receipt),
         schema: agentSendSchema,
       };
     }
@@ -287,7 +295,7 @@ export async function runSendCommand(
 
     return {
       type: "single",
-      data: { ...buildSendResult(agentIdArg, state), ...receiptFields },
+      data: { ...buildSendResult(agentIdArg, state), ...sendReceiptFields(receipt) },
       schema: agentSendSchema,
     };
   } catch (err) {

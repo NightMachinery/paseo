@@ -1,21 +1,23 @@
 import { beforeEach, expect, test, vi } from "vitest";
 import * as native from "@getpaseo/expo-two-way-audio";
 import { useDictationMicrophoneStore } from "@/voice/dictation-microphone";
-import { createAudioEngine } from "./audio-engine.native";
+import { createNativeAudioEngine } from "./native-audio-engine";
 
-vi.mock("expo-audio", () => ({ createAudioPlayer: vi.fn(), setAudioModeAsync: vi.fn() }));
-vi.mock("@/constants/platform", () => ({ isAndroid: true }));
 vi.mock("@/voice/dictation-microphone", () => ({
   useDictationMicrophoneStore: { read: vi.fn(async () => "automatic") },
 }));
-vi.mock("expo-file-system", () => ({ File: vi.fn(), Paths: {} }));
 vi.mock("@getpaseo/expo-two-way-audio", () => ({
   initialize: vi.fn(async () => true),
   tearDown: vi.fn(),
   startDictationAsync: vi.fn(async () => true),
+  startDictation: vi.fn(() => true),
   toggleRecording: vi.fn((value: boolean) => value),
   releaseAudioSession: vi.fn(),
   getMicrophonePermissionsAsync: vi.fn(async () => ({ granted: true })),
+  requestMicrophonePermissionsAsync: vi.fn(async () => ({ granted: true })),
+  playPCMData: vi.fn(),
+  resumePlayback: vi.fn(),
+  stopPlayback: vi.fn(),
   addExpoTwoWayAudioEventListener: vi.fn(() => ({ remove: vi.fn() })),
 }));
 
@@ -26,6 +28,18 @@ const callbacks = {
   onInterruption: vi.fn(),
   onError: vi.fn(),
 };
+
+function createEngine() {
+  return createNativeAudioEngine(
+    {
+      native,
+      playEncodedAudio: async () => 0,
+      readDeviceMicrophone: async () => (await useDictationMicrophoneStore.read()) === "device",
+    },
+    callbacks,
+    { captureMode: "dictation" },
+  );
+}
 
 function emit(
   event: "onAudioInterruption" | "onMicrophoneData",
@@ -47,7 +61,7 @@ test("dictation reports headset fallback during route setup and keeps capturing"
     return true;
   });
 
-  const engine = createAudioEngine(callbacks, { captureMode: "dictation" });
+  const engine = createEngine();
   await engine.startCapture();
   expect(callbacks.onHeadsetMicrophoneFallback).toHaveBeenCalledOnce();
   expect(callbacks.onInterruption).not.toHaveBeenCalled();
@@ -65,7 +79,7 @@ test("stopping capture during route setup cancels a late native start", async ()
     requested.resolve();
     return readiness.promise;
   });
-  const engine = createAudioEngine(callbacks, { captureMode: "dictation" });
+  const engine = createEngine();
 
   const starting = expect(engine.startCapture()).rejects.toThrow(
     "Microphone capture was cancelled.",
@@ -86,7 +100,7 @@ test("stopping capture during route setup cancels a late native start", async ()
 test("Android dictation passes the current microphone choice to native", async () => {
   const read = vi.mocked(useDictationMicrophoneStore.read);
   read.mockResolvedValueOnce("automatic").mockResolvedValueOnce("device");
-  const engine = createAudioEngine(callbacks, { captureMode: "dictation" });
+  const engine = createEngine();
 
   await engine.startCapture();
   await engine.stopCapture();

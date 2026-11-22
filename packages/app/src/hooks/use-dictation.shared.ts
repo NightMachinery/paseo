@@ -1,4 +1,5 @@
 import type { DictationEmptyReason } from "@/dictation/empty-transcript-reason";
+import type { AudioCaptureStartFailure } from "@/audio";
 import { i18n } from "@/i18n/i18next";
 
 export type DictationStatus =
@@ -29,6 +30,8 @@ export interface UseDictationResult {
   volume: number;
   duration: number;
   error: string | null;
+  startError: AudioCaptureStartFailure | null;
+  clearStartError: () => void;
   status: DictationStatus;
   emptyReason: DictationEmptyReason | null;
   // True while recording and no audible audio has arrived in the last SILENCE_HOLD_MS.
