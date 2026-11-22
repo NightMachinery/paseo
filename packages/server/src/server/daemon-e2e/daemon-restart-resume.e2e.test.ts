@@ -291,8 +291,13 @@ test.each([undefined, false, true])(
       client = new DaemonClient({ url: `ws://127.0.0.1:${second.port}/ws`, appVersion: "0.13.0" });
       await client.connect();
       const storage = new AgentStorage(path.join(second.paseoHome, "agents"), createTestLogger());
-      // Resume runs in the background; it is done once the saved intent is consumed.
-      await expect.poll(async () => (await storage.get(working.id))?.resumeOnStartup).toBe(false);
+      // A fresh runtime snapshot can omit an already-consumed resume intent.
+      await expect
+        .poll(async () => {
+          const record = await storage.get(working.id);
+          return record ? (record.resumeOnStartup ?? false) : undefined;
+        })
+        .toBe(false);
       const resumePrompts = async () =>
         (await readFile(path.join(root, "all-prompts.jsonl"), "utf8"))
           .trim()
