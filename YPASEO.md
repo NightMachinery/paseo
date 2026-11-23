@@ -325,11 +325,13 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   PR https://github.com/getpaseo/paseo/pull/10299 (branch `dictation-stt-block`); drop when it
   merges (keep it on by default here even if upstream ships it off).
 
-- **The paseo skill tells agents to hide helpers.** `skills/paseo/SKILL.md` says to pass
-  `background: true` (MCP) or `paseo run --background` (CLI) for helper agents the user does not
-  watch, instead of upstream's "override it only when the user explicitly asks". Without it every
-  child in its own workspace, and each of its children, showed in the sidebar. Drop if upstream
-  adopts equivalent guidance.
+- **The paseo skill tells agents to hide helpers' workspaces.** `skills/paseo/SKILL.md` says to
+  pass `background: true` to `create_workspace` (CLI `paseo workspace create --background`) for a
+  helper the user does not watch, instead of upstream's "override it only when the user
+  explicitly asks", and to leave the helper agent itself visible. Without the first, every child
+  in its own workspace, and each of its children, showed in the sidebar; with the agent hidden as
+  well, the app also dropped it from its parent's subagent track, so it showed nowhere. Drop if
+  upstream adopts equivalent guidance.
 
 - **App diagnostic exports and sends client logs.** Settings > Diagnostics can
   share a redacted report, send it to a compatible host, or clear the local

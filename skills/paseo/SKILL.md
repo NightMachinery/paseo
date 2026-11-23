@@ -44,7 +44,7 @@ For a local daemon, `project create` defaults to the current directory and resol
 
 **`create_workspace`** — create a workspace independently of any agent. Required: `isolation` (`local` or `worktree`). Worktree isolation supports `mode: "branch-off" | "checkout-branch" | "checkout-pr"`: use `branchName`/`baseBranch` for a new branch, `branch` for an existing branch, or `prNumber` plus optional `forge` for a change request. Use `path` for a local directory or source checkout and `projectId` for the owning project; when no path is supplied, a worktree may resolve its source from `projectId`. `worktreeSlug` controls the managed path. Returns the workspace descriptor centered on `workspaceId`.
 
-`background: true` hides a workspace from default lists and the sidebar while its contents remain durable and accessible; omitted, it inherits your current workspace’s value (false without a caller). Pass `background: true` to `create_workspace` and `create_agent` for helpers the user does not need to watch (workers, reviewers and probes you coordinate yourself); otherwise a child in a workspace of its own appears in the sidebar as a top-level workspace, and so do the children it creates. Leave it visible when the user asked to see or talk to that agent. The flag is fixed at creation.
+`background: true` hides a workspace from default lists and the sidebar while its contents remain durable and accessible; omitted, it inherits your current workspace’s value (false without a caller). When a helper the user does not need to watch (a worker, reviewer or probe you coordinate yourself) gets a workspace of its own, pass `background: true` to that `create_workspace`; otherwise it appears in the sidebar as a top-level workspace, and so do the workspaces it creates. Leave `background` off `create_agent`: the app also leaves a background agent out of its parent's subagent track, so in a hidden workspace the user can find it nowhere, while a visible child in a hidden workspace is listed under you. Mark the agent itself background only when the user asks for that, and leave the workspace visible when they asked to see or talk to the agent. Both flags are fixed at creation.
 
 Choose `baseBranch` explicitly: `origin/main` selects the remote-tracking branch; `refs/heads/main` selects local main. Bare `main` prefers local main when it exists, otherwise origin/main. Paseo retains the resolved ref for workspace comparisons, even after rebasing the branch or changing its PR target.
 
@@ -146,7 +146,8 @@ paseo workspace create --isolation worktree --mode branch-off --new-branch fix-x
 paseo workspace create --isolation worktree --mode checkout-branch --branch existing-work
 paseo workspace create --isolation worktree --mode checkout-pr --pr-number 42
 paseo run --provider codex/gpt-5.4 --mode full-access --workspace <workspace-id> "<prompt>"
-paseo run --background --no-wait --provider codex/gpt-5.4 --mode full-access --workspace <workspace-id> "<prompt>"   # helper the user does not watch
+paseo workspace create --background --isolation worktree --mode branch-off --new-branch helper-x --base origin/main   # hidden workspace for a helper the user does not watch
+paseo run --no-wait --provider codex/gpt-5.4 --mode full-access --workspace <workspace-id> "<prompt>"   # the helper itself stays in your subagent track
 paseo run --provider codex/gpt-5.4 --mode full-access --new-workspace worktree --worktree-mode branch-off --new-branch fix-x --base origin/main "<prompt>"
 paseo send --behavior steer <agent-id> "<follow-up>"
 paseo ls
