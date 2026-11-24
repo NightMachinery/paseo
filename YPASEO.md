@@ -301,8 +301,9 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   pages through `fetchAllAgents` and adds `includeBackground` when the host supports background
   workspaces (`fetchPermitAgents` in `packages/cli/src/commands/permit/ls.ts`). `permit allow` and
   `deny` look agents up by id and were not affected. CLI code. Test
-  `commands/permit/permit-output.test.ts`. Upstream: not yet posted (branch
-  `permit-ls-background`); drop when it merges.
+  `commands/permit/permit-output.test.ts`. Upstream: issue
+  https://github.com/getpaseo/paseo/issues/10654, PR https://github.com/getpaseo/paseo/pull/10655
+  (branch `permit-ls-background`); drop when it merges.
 - **Restart recovery keeps interrupted turns and queued messages.** Port of upstream PR
   https://github.com/getpaseo/paseo/pull/9277 (author kept) for issue
   https://github.com/getpaseo/paseo/issues/9278, adapted to the fork's queue shutdown order:
