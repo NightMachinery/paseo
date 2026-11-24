@@ -295,6 +295,14 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   `utils/resolve-spawn-command.test.ts`, `utils/spawn.test.ts`. Upstream: issue
   https://github.com/getpaseo/paseo/issues/10240, PR https://github.com/getpaseo/paseo/pull/10241
   (branch `spawn-resolved-path`); drop when it merges.
+- **`paseo permit ls` lists background agents' requests.** It made one `fetchAgents` call
+  without `includeBackground` and without paging, so it missed every pending permission of a
+  background agent and of any agent past the first 200 (archived ones included). It now reads all
+  pages through `fetchAllAgents` and adds `includeBackground` when the host supports background
+  workspaces (`fetchPermitAgents` in `packages/cli/src/commands/permit/ls.ts`). `permit allow` and
+  `deny` look agents up by id and were not affected. CLI code. Test
+  `commands/permit/permit-output.test.ts`. Upstream: not yet posted (branch
+  `permit-ls-background`); drop when it merges.
 - **Restart recovery keeps interrupted turns and queued messages.** Port of upstream PR
   https://github.com/getpaseo/paseo/pull/9277 (author kept) for issue
   https://github.com/getpaseo/paseo/issues/9278, adapted to the fork's queue shutdown order:
