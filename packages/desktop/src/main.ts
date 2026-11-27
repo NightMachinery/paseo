@@ -63,6 +63,7 @@ import { resolveAppIconPath } from "./features/stamped-icon.js";
 import { setupApplicationMenu } from "./features/menu.js";
 import {
   BROWSER_NEW_TAB_REQUEST_EVENT,
+  buildBrowserPopupWebPreferences,
   decideBrowserWindowOpenRequest,
   getPaseoBrowserIdForWebContents,
   getPaseoBrowserWebContentsForHostWindow,
@@ -80,12 +81,17 @@ import {
 import {
   clearPaseoBrowserProfile,
   getLegacyPaseoBrowserProfileSession,
-  PASEO_BROWSER_PROFILE_PARTITION,
   getPaseoBrowserProfileSession,
   getPaseoBrowserProfileSessions,
+  listDiskHostBrowserProxyPartitions,
   listPaseoBrowserProfileGuests,
+  readHostBrowserProxyPartitions,
   readLegacyPaseoBrowserIds,
 } from "./features/browser-profile.js";
+import {
+  applyProxiedWebContentsPolicy,
+  createElectronBrowserProxyController,
+} from "./features/browser-proxy/index.js";
 import { parseOpenProjectPathFromArgv } from "./open-project-routing.js";
 import {
   createDesktopWindowOwner,
@@ -193,6 +199,7 @@ function readActiveBrowserInput(
 
 const browserKeyboard = new BrowserKeyboard(getPaseoBrowserWebviewRegistry());
 browserKeyboard.registerIpc();
+const browserProxy = createElectronBrowserProxyController();
 
 function showBrowserWebviewContextMenu(
   win: BrowserWindow,
@@ -230,22 +237,13 @@ function showBrowserWebviewContextMenu(
 
 function getBrowserPopupWindowOptions(
   mainWindow: BrowserWindow,
+  openerSession: Electron.Session,
 ): Electron.BrowserWindowConstructorOptions {
   return {
     parent: mainWindow,
     show: true,
     autoHideMenuBar: true,
-    webPreferences: {
-      partition: PASEO_BROWSER_PROFILE_PARTITION,
-      nodeIntegration: false,
-      nodeIntegrationInSubFrames: false,
-      nodeIntegrationInWorker: false,
-      contextIsolation: true,
-      sandbox: true,
-      webSecurity: true,
-      webviewTag: false,
-      allowRunningInsecureContent: false,
-    },
+    webPreferences: buildBrowserPopupWebPreferences(openerSession),
   };
 }
 
@@ -271,7 +269,7 @@ function installBrowserWindowOpenHandler(input: {
     if (decision.kind === "popup") {
       return {
         action: "allow",
-        overrideBrowserWindowOptions: getBrowserPopupWindowOptions(mainWindow),
+        overrideBrowserWindowOptions: getBrowserPopupWindowOptions(mainWindow, contents.session),
       };
     }
 
@@ -289,6 +287,7 @@ function installBrowserWindowOpenHandler(input: {
 
   contents.on("did-create-window", (popupWindow) => {
     const popupContents = popupWindow.webContents;
+    applyProxiedWebContentsPolicy(popupContents, browserProxy.manager);
     registerBrowserWebviewNavigationGuards(popupContents);
     popupContents.on("context-menu", (_event, params) => {
       showBrowserWebviewContextMenu(popupWindow, popupContents, params);
@@ -405,6 +404,7 @@ ipcMain.handle("paseo:browser:register-attached", (event, rawInput: unknown) => 
     ...input,
     sender: event.sender,
     profileSession: getPaseoBrowserProfileSession(session),
+    isAllowedSession: (candidate) => browserProxy.manager.isProxiedSession(candidate),
     findWebContents: (webContentsId) => webContents.fromId(webContentsId) ?? null,
   });
   if (!registered) {
@@ -517,24 +517,32 @@ ipcMain.handle("paseo:browser:open-devtools", (event, browserId: unknown) => {
   return result;
 });
 
-ipcMain.handle("paseo:browser:clear-profile", async (_event, rawLegacyBrowserIds: unknown) => {
-  const profileSessions = getPaseoBrowserProfileSessions(
-    session,
-    readLegacyPaseoBrowserIds(rawLegacyBrowserIds),
-  );
-  const profileSession = profileSessions[0];
-  await clearPaseoBrowserProfile({
-    profileSessions,
-    listGuests: () =>
-      listPaseoBrowserProfileGuests({
-        profileSession,
-        webContents: webContents.getAllWebContents(),
-      }),
-    logReloadError: (webContentsId, error) => {
-      log.warn("[browser-profile] failed to reload guest", { webContentsId, error });
-    },
-  });
-});
+ipcMain.handle(
+  "paseo:browser:clear-profile",
+  async (_event, rawLegacyBrowserIds: unknown, rawHostServerIds?: unknown) => {
+    const hostPartitions = [
+      ...browserProxy.manager.listKnownPartitions(),
+      ...readHostBrowserProxyPartitions(rawHostServerIds),
+      ...listDiskHostBrowserProxyPartitions(app.getPath("userData")),
+    ];
+    const profileSessions = getPaseoBrowserProfileSessions(
+      session,
+      readLegacyPaseoBrowserIds(rawLegacyBrowserIds),
+      hostPartitions,
+    );
+    await clearPaseoBrowserProfile({
+      profileSessions,
+      listGuests: () =>
+        listPaseoBrowserProfileGuests({
+          profileSessions,
+          webContents: webContents.getAllWebContents(),
+        }),
+      logReloadError: (webContentsId, error) => {
+        log.warn("[browser-profile] failed to reload guest", { webContentsId, error });
+      },
+    });
+  },
+);
 
 const browserCapture = createBrowserCaptureService<Electron.NativeImage>({
   findGuest: getPaseoBrowserWebContentsForHostWindow,
@@ -761,7 +769,14 @@ async function createWindow(
   setupDefaultContextMenu(mainWindow);
   setupDragDropPrevention(mainWindow);
   mainWindow.webContents.on("will-attach-webview", (event, webPreferences, params) => {
-    if (!isPaseoBrowserWebviewAttach(params)) {
+    if (
+      !isPaseoBrowserWebviewAttach({
+        src: params.src,
+        partition: params.partition,
+        isAllowedHostPartition: (partition) =>
+          browserProxy.manager.isAllowedHostPartition(partition),
+      })
+    ) {
       event.preventDefault();
       return;
     }
@@ -782,6 +797,7 @@ async function createWindow(
     webPreferences.preload = getBrowserKeyboardPreloadPath();
   });
   mainWindow.webContents.on("did-attach-webview", (_event, contents) => {
+    applyProxiedWebContentsPolicy(contents, browserProxy.manager);
     preparePaseoBrowserWebContents(contents);
     contents.once("destroyed", () => {
       pendingBrowserWindowOpenRequests.delete(contents.id);
@@ -994,6 +1010,7 @@ async function bootstrap(): Promise<void> {
   ipcMain.handle("paseo:opener:openUrl", (_event, value: unknown) => openExternalUrl(value));
   registerEditorTargetHandlers();
   registerBrowserAutomationIpc();
+  browserProxy.registerIpc();
 
   // In-app "Open in new window": opens a window that lands on the given project
   // via the same open-project flow as a CLI launch (no move, no ownership).
@@ -1053,7 +1070,12 @@ function showDaemonShutdownDialog(): void {
 
 const quitLifecycle = createQuitLifecycle({
   app,
-  closeTransportSessions: closeAllTransportSessions,
+  closeTransportSessions: () => {
+    closeAllTransportSessions();
+    void browserProxy.dispose().catch((error) => {
+      log.warn("[browser-proxy] failed to dispose browser proxies on quit", error);
+    });
+  },
   stopDesktopManagedDaemonIfNeeded: () =>
     stopDesktopManagedDaemonOnQuitIfNeeded({
       settingsStore: getDesktopSettingsStore(),

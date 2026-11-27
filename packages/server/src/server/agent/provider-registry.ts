@@ -95,6 +95,18 @@ export interface ProviderDefinition extends AgentProviderDefinition {
     client?: AgentClient,
     context?: ProviderRefreshContext,
   ) => Promise<ProviderCatalog>;
+  /**
+   * Discovers the provider's raw catalog before applying static config overlays
+   * (`models`, `additionalModels`, mode icons/colors). `discovered: false` indicates
+   * the catalog came purely from static config without invoking the provider runtime.
+   */
+  fetchRawCatalog?: (
+    options: FetchCatalogOptions,
+    client?: AgentClient,
+    context?: ProviderRefreshContext,
+  ) => Promise<{ catalog: ProviderCatalog; discovered: boolean }>;
+  /** Applies static provider config overlays (`models`, `additionalModels`, mode metadata). */
+  applyCatalogConfig?: (catalog: ProviderCatalog) => ProviderCatalog;
 }
 
 /** Provider metadata and an unconfigured factory; the registry owns override application. */
@@ -507,24 +519,25 @@ export function wrapSessionProvider(provider: AgentProvider, inner: AgentSession
   } satisfies ForwardedAgentSession;
 }
 
-function forwardNativeSessionMethods(
-  inner: AgentClient,
-): Pick<
-  AgentClient,
-  "resolveNativeTranscript" | "archiveNativeSession" | "unarchiveNativeSession"
-> {
-  const archive = inner.archiveNativeSession?.bind(inner);
-  const unarchive = inner.unarchiveNativeSession?.bind(inner);
+function bindClientDirectMethods(inner: AgentClient) {
   return {
+    shutdown: inner.shutdown?.bind(inner),
+    resolveCreateConfig: inner.resolveCreateConfig?.bind(inner),
+    resolveConfiguredModel: inner.resolveConfiguredModel?.bind(inner),
+    isCreateConfigUnattended: inner.isCreateConfigUnattended?.bind(inner),
+    resolveUsageLaunch: inner.resolveUsageLaunch?.bind(inner),
     resolveNativeTranscript: inner.resolveNativeTranscript?.bind(inner),
-    archiveNativeSession: archive
-      ? async (handle) => await archive({ ...handle, provider: inner.provider })
-      : undefined,
-    unarchiveNativeSession: unarchive
-      ? async (handle) => await unarchive({ ...handle, provider: inner.provider })
-      : undefined,
+    requireLaunchWrap: inner.requireLaunchWrap?.bind(inner),
+    getCatalogCacheKey: inner.getCatalogCacheKey?.bind(inner),
+    getCatalogBinaryFingerprint: inner.getCatalogBinaryFingerprint?.bind(inner),
+    checkAvailability: inner.checkAvailability?.bind(inner),
+    getDiagnostic: inner.getDiagnostic?.bind(inner),
   };
 }
+
+// Maps wrapped registry clients back to their unmerged provider discovery call so
+// persistent catalog caches store only discovered entries and apply config overlays on load.
+const rawCatalogFetchers = new WeakMap<AgentClient, AgentClient["fetchCatalog"]>();
 
 function wrapClientProvider(
   provider: AgentProvider,
@@ -538,6 +551,8 @@ function wrapClientProvider(
   const listImportableSessions = inner.listImportableSessions?.bind(inner);
   const importSession = inner.importSession?.bind(inner);
   const listControls = inner.listControls?.bind(inner);
+  const archiveNativeSession = inner.archiveNativeSession?.bind(inner);
+  const unarchiveNativeSession = inner.unarchiveNativeSession?.bind(inner);
   const configuredModelIds = [...profileModels, ...additionalModels].map((model) => model.id);
   // Converted where it is used, so a malformed configured default fails the call that reads it
   // rather than the registry that holds every provider.
@@ -546,13 +561,14 @@ function wrapClientProvider(
   const withDefaults = (own: ProviderOptions | undefined) =>
     mergeProviderOptions(configuredDefaults(), own);
 
-  return {
+  const wrapped: AgentClient = {
+    ...bindClientDirectMethods(inner),
     provider,
     get capabilities() {
       return inner.capabilities;
     },
+    catalogRefresh: inner.catalogRefresh,
     supportsLaunchWrap,
-    shutdown: inner.shutdown?.bind(inner),
     createSession: async (config, launchContext, options) =>
       wrapSessionProvider(
         provider,
@@ -608,9 +624,6 @@ function wrapClientProvider(
             signal,
           })
       : undefined,
-    resolveCreateConfig: inner.resolveCreateConfig?.bind(inner),
-    resolveConfiguredModel: inner.resolveConfiguredModel?.bind(inner),
-    isCreateConfigUnattended: inner.isCreateConfigUnattended?.bind(inner),
     effectiveOptions: (own) => withDefaults(own) ?? {},
     listControls: listControls
       ? async (config) =>
@@ -620,7 +633,6 @@ function wrapClientProvider(
             providerOptions: withDefaults(config.providerOptions),
           })
       : undefined,
-    ...forwardNativeSessionMethods(inner),
     listImportableSessions: listImportableSessions
       ? async (options) =>
           await listImportableSessions({ ...options, providerOptions: configuredDefaults() })
@@ -655,13 +667,19 @@ function wrapClientProvider(
           };
         }
       : undefined,
-    resolveUsageLaunch: inner.resolveUsageLaunch?.bind(inner),
-    requireLaunchWrap: inner.requireLaunchWrap?.bind(inner),
-    getCatalogCacheKey: inner.getCatalogCacheKey?.bind(inner),
+    archiveNativeSession: archiveNativeSession
+      ? async (handle) => await archiveNativeSession({ ...handle, provider: inner.provider })
+      : undefined,
+    unarchiveNativeSession: unarchiveNativeSession
+      ? async (handle) => await unarchiveNativeSession({ ...handle, provider: inner.provider })
+      : undefined,
     isAvailable: (signal, options) => inner.isAvailable(signal, options),
-    getDiagnostic: inner.getDiagnostic?.bind(inner),
     installation: inner.installation,
   };
+  rawCatalogFetchers.set(wrapped, (options, context) =>
+    inner.fetchCatalog({ ...options, providerOptions: configuredDefaults() }, context),
+  );
+  return wrapped;
 }
 
 function createRegistryEntry(
@@ -694,9 +712,63 @@ function createRegistryEntry(
 
   const hasStaticModes = resolved.definition.modes.length > 0;
 
+  const applyCatalogConfig = (catalog: ProviderCatalog): ProviderCatalog => {
+    if (hasReplacementModels) {
+      return {
+        ...catalog,
+        models: mergeModelAdditions(provider, replacementModels, additionalModels),
+        modes: decorateModes(hasStaticModes ? resolved.definition.modes : catalog.modes),
+      };
+    }
+    return {
+      ...catalog,
+      models: mergeModels(provider, profileModels, additionalModels, catalog.models, {
+        profileModelsAreAdditive: resolved.profileModelsAreAdditive,
+      }),
+      modes: decorateModes(catalog.modes),
+    };
+  };
+
+  const fetchRawCatalog = async (
+    options: FetchCatalogOptions,
+    client?: AgentClient,
+    context?: ProviderRefreshContext,
+  ): Promise<{ catalog: ProviderCatalog; discovered: boolean }> => {
+    const catalogClient = client ?? modelClient;
+    if (hasReplacementModels && hasStaticModes) {
+      const defaultModeId = await runProviderRefreshActivity(
+        context,
+        "default-mode",
+        async () =>
+          await catalogClient.resolveDefaultModeId?.({
+            config: {
+              provider,
+              cwd: options.scope === "workspace" ? options.cwd : process.cwd(),
+            },
+            signal: context?.signal,
+          }),
+      );
+      return {
+        discovered: false,
+        catalog: {
+          models: [],
+          modes: resolved.definition.modes,
+          defaultModeId,
+        },
+      };
+    }
+    const rawFetch = rawCatalogFetchers.get(catalogClient);
+    const catalog = rawFetch
+      ? await rawFetch(options, context)
+      : await catalogClient.fetchCatalog(options, context);
+    return { discovered: true, catalog };
+  };
+
   const { createBaseClient: _createBaseClient, contract: _contract, ...configuration } = resolved;
   return {
     ...resolved.definition,
+    catalogRefresh:
+      resolved.definition.catalogRefresh ?? modelClient.catalogRefresh ?? "background",
     configuration,
     enabled: resolved.enabled,
     derivedFromProviderId: resolved.derivedFromProviderId,
@@ -718,49 +790,13 @@ function createRegistryEntry(
     resolveCreateConfig: modelClient.resolveCreateConfig ?? resolveDefaultAgentCreateConfig,
     isCreateConfigUnattended:
       modelClient.isCreateConfigUnattended ?? isDefaultAgentCreateConfigUnattended,
+    applyCatalogConfig,
+    fetchRawCatalog,
     fetchCatalog: async (
       options: FetchCatalogOptions,
       client?: AgentClient,
       context?: ProviderRefreshContext,
-    ) => {
-      const catalogClient = client ?? modelClient;
-      if (hasReplacementModels) {
-        // Replacement models skip runtime model discovery, but additionalModels
-        // must still be merged on top. If modes are dynamic, probe for modes via
-        // the single catalog API; otherwise use static/empty modes with no runtime.
-        const models = mergeModelAdditions(provider, replacementModels, additionalModels);
-        if (hasStaticModes) {
-          const defaultModeId = await runProviderRefreshActivity(
-            context,
-            "default-mode",
-            async () =>
-              await catalogClient.resolveDefaultModeId?.({
-                config: {
-                  provider,
-                  cwd: options.scope === "workspace" ? options.cwd : process.cwd(),
-                },
-                signal: context?.signal,
-              }),
-          );
-          return {
-            models,
-            modes: decorateModes(resolved.definition.modes),
-            defaultModeId,
-          };
-        }
-        const catalog = await catalogClient.fetchCatalog(options, context);
-        return { ...catalog, models, modes: decorateModes(catalog.modes) };
-      }
-
-      const catalog = await catalogClient.fetchCatalog(options, context);
-      return {
-        ...catalog,
-        models: mergeModels(provider, profileModels, additionalModels, catalog.models, {
-          profileModelsAreAdditive: resolved.profileModelsAreAdditive,
-        }),
-        modes: decorateModes(catalog.modes),
-      };
-    },
+    ) => applyCatalogConfig((await fetchRawCatalog(options, client, context)).catalog),
   };
 }
 

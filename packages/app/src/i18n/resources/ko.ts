@@ -662,6 +662,24 @@ export const ko: TranslationResources = {
         invalidUrl: "잘못된 브라우저 URL",
         unsupportedProtocol: "지원되지 않는 브라우저 URL을 차단했습니다: {{protocol}}",
       },
+      routing: {
+        tooltipHost: "{{hostName}}을(를) 통해 탐색 중입니다. 클릭하여 로컬로 탐색하세요.",
+        tooltipLocal: "로컬로 탐색 중입니다. 클릭하여 {{hostName}}을(를) 통해 탐색하세요.",
+        switchToLocal: "브라우저 라우팅을 {{hostName}}에서 로컬로 전환",
+        switchToHost: "브라우저 라우팅을 로컬에서 {{hostName}}(으)로 전환",
+      },
+      proxy: {
+        connecting: "{{hostName}}에 연결 중...",
+        reconnecting: "{{hostName}}에 다시 연결 중...",
+        updateTitle: "이 호스트를 통해 탐색하려면 {{hostName}}을(를) 업데이트하세요",
+        updateDescription: "이 호스트는 아직 브라우저 프록시를 지원하지 않습니다.",
+        routedTitle: "라우팅된 호스트에서는 브라우저 프록시를 사용할 수 없습니다",
+        routedDescription: "이 호스트에 직접 연결하거나 로컬로 탐색하세요.",
+        offlineTitle: "{{hostName}}이(가) 오프라인입니다",
+        offlineDescription: "호스트가 다시 연결될 때까지 기다리거나 로컬로 탐색하세요.",
+        errorTitle: "브라우저 프록시에 연결할 수 없습니다",
+        browseLocally: "로컬로 탐색",
+      },
     },
     terminal: {
       hostDisconnected: "호스트가 연결되어 있지 않습니다",
@@ -2465,6 +2483,47 @@ export const ko: TranslationResources = {
     },
     notifications: {
       title: "알림",
+      enabled: {
+        label: "알림 사용",
+        description: "이 기기에서 에이전트, 터미널, 플러그인 알림을 받습니다",
+        pausedDescription: "플러그인을 포함한 모든 알림이 이 기기에서 일시 중지되었습니다",
+      },
+      events: {
+        title: "이벤트",
+        agentPermission: {
+          label: "에이전트 권한 필요",
+          description: "승인, 계획 및 질문",
+        },
+        agentError: {
+          label: "에이전트 오류",
+          description: "에이전트가 오류로 중단될 때",
+        },
+        agentFinished: {
+          label: "에이전트 완료",
+          description: "에이전트가 턴을 완료할 때",
+        },
+        terminalNeedsInput: {
+          label: "터미널 입력 대기",
+          description: "터미널 명령이 입력을 기다릴 때",
+        },
+        terminalFinished: {
+          label: "터미널 완료",
+          description: "터미널 명령이 완료될 때",
+        },
+      },
+      plugins: {
+        title: "플러그인",
+        enabled: {
+          label: "플러그인 알림",
+          description: "설치된 플러그인이 알림을 보낼 수 있도록 허용",
+        },
+        empty: "설치된 플러그인이 여기에 표시되어 개별적으로 음소거할 수 있습니다",
+      },
+      legacyHostTitle: "푸시 설정을 위해 호스트 업데이트 필요",
+      legacyHostHint: "이 기기의 맞춤 푸시 알림 설정을 동기화하려면 연결된 호스트를 업데이트하세요",
+      desktop: {
+        title: "시스템",
+      },
       permission: "알림 권한",
       refreshAccessibility: "알림 권한 새로 고침",
       playSound: "소리 재생",
@@ -2498,7 +2557,7 @@ export const ko: TranslationResources = {
     metadataGeneration: {
       title: "메타데이터 생성",
       description:
-        "워크스페이스 제목, 브랜치 이름, 커밋 메시지 및 풀 리퀘스트 초안에 사용할 모델을 선택하세요",
+        "워크스페이스 제목, 브랜치 이름, 커밋 메시지 및 풀 리퀘스트 초안에 사용할 모델과 지침을 선택하세요",
       selection: "모델 선택",
       automatic: "자동",
       preferred: "수동",
@@ -2506,6 +2565,10 @@ export const ko: TranslationResources = {
       preferredHint: "Paseo에서 사용할 모델을 선택하세요",
       model: "모델",
       modelHint: "이 모델만 사용합니다. 실패해도 Paseo는 다른 모델을 시도하지 않습니다",
+      instructions: "지침",
+      instructionsHint: "이 호스트에서 생성되는 모든 메타데이터에 적용됩니다",
+      instructionsPlaceholder:
+        "예: 한국어로 작성하세요. 제목과 커밋 메시지의 문체를 일관되게 유지하세요. 긴 대시(—)는 사용하지 마세요.",
       docs: "문서",
       saveError: "메타데이터 생성을 업데이트할 수 없습니다",
     },
@@ -3138,6 +3201,8 @@ export const ko: TranslationResources = {
       },
       agentProfiles: {
         sectionTitle: "에이전트 프로필",
+        sectionDescription:
+          "빠르게 선택할 수 있고 에이전트가 작업을 위임할 때도 사용할 수 있는 에이전트 설정을 저장합니다",
         unavailable: "에이전트 프로필을 관리하려면 이 호스트에 연결하세요",
         unsupported: "이 호스트에서 실행 중인 데몬은 아직 에이전트 프로필을 지원하지 않습니다",
         emptyState:
@@ -3162,6 +3227,9 @@ export const ko: TranslationResources = {
         featuresLabel: "기능",
         featureCount: "기능 {{count}}개",
         featureCountOne: "기능 {{count}}개",
+        systemPromptLabel: "시스템 프롬프트",
+        systemPromptPlaceholder: "레이아웃, 접근성, 디자인 토큰에 집중하세요.",
+        systemPromptHint: "새 에이전트에만 적용됩니다",
         notesLabel: "사용 시점",
         notesPlaceholder: "UI 작업에 사용 — 컴포넌트, 레이아웃, 디자인 토큰.",
         notesHint: "에이전트가 다른 에이전트를 시작할 때 이 프로필을 선택하는 데 사용됩니다.",
