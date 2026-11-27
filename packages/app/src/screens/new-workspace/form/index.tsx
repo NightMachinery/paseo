@@ -71,6 +71,11 @@ export interface NewWorkspaceFormProps {
   isPending: boolean;
   /** Plugin fields, drawn after the base ref. */
   pluginItems: ReactNode;
+  /**
+   * Where focus goes when a field's picker closes, so the user keeps typing the prompt. Without
+   * one, focus returns to the field that opened the picker.
+   */
+  restoreFocusRef?: RefObject<unknown>;
   project: PickerControl & {
     options: ComboboxOption[];
     projectByOptionId: Map<string, HostProjectListItem>;
@@ -379,7 +384,17 @@ function useRefPicker(base: NewWorkspaceFormProps["base"], isPending: boolean) {
  */
 export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement {
   const { t } = useTranslation();
-  const { isCompact, isPending, pluginItems, project, host, isolation, base, launch } = props;
+  const {
+    isCompact,
+    isPending,
+    pluginItems,
+    restoreFocusRef,
+    project,
+    host,
+    isolation,
+    base,
+    launch,
+  } = props;
   const variant: FieldTriggerVariant = isCompact ? "field" : "badge";
   const projectPicker = useProjectPicker(project, isPending);
   const isolationPicker = useIsolationPicker({
@@ -439,13 +454,14 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
       open={host.openState}
       onOpenChange={host.onOpenChange}
       anchorRef={host.anchorRef}
+      restoreFocusRef={restoreFocusRef}
       includeAddHost
       onAddHost={host.onAddHost}
       addHostTestID="new-workspace-host-picker-add-host"
       searchable={false}
       title={t("newWorkspace.fields.host")}
       desktopPlacement="bottom-start"
-      desktopMinWidth={200}
+      desktopMinWidth={320}
       hostOptionTestID={hostOptionTestID}
     >
       <FieldTrigger
@@ -532,6 +548,7 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
         desktopPlacement="bottom-start"
         desktopMinWidth={360}
         anchorRef={project.anchorRef}
+        restoreFocusRef={restoreFocusRef}
         emptyText="No projects available."
         renderOption={projectPicker.renderOption}
         footer={projectPicker.footer}
@@ -546,6 +563,7 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
         searchable={false}
         desktopPlacement="bottom-start"
         anchorRef={isolation.anchorRef}
+        restoreFocusRef={restoreFocusRef}
         desktopMinWidth={280}
         renderOption={isolationPicker.renderOption}
       />
@@ -562,6 +580,7 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
         desktopPlacement="bottom-start"
         desktopMinWidth={440}
         anchorRef={base.anchorRef}
+        restoreFocusRef={restoreFocusRef}
         emptyText={base.emptyText}
         toolbar={refPicker.toolbar}
         renderOption={refPicker.renderOption}
@@ -578,6 +597,7 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
         desktopPlacement="bottom-start"
         desktopMinWidth={360}
         anchorRef={worktreePicker.anchorRef}
+        restoreFocusRef={restoreFocusRef}
         emptyText={t("newWorkspace.worktreePicker.empty")}
         renderOption={worktreePicker.renderOption}
       />

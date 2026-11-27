@@ -41,7 +41,7 @@ import {
   mapTaskNotificationSystemRecordToToolCall,
   mapTaskNotificationUserContentToToolCall,
   readTaskNotificationToolUseIdFromHistoryRecord,
-  readTaskNotificationFromHistoryRecord,
+  readTaskNotificationOutcomeFromHistoryRecord,
 } from "./task-notification-tool-call.js";
 import { isClaudeInterruptPlaceholderText } from "./interrupt-placeholder.js";
 import {
@@ -56,6 +56,7 @@ import {
   claudeManifestModelSupportsUltracode,
   parseClaudeCodeVersion,
   resolveClaudeDisabledThinkingForModel,
+  supportsClaudeMcpServersViaInitialize,
   supportsIndependentClaudeUltracode,
 } from "./model-manifest.js";
 import { expandTilde } from "../../../../utils/path.js";
@@ -90,7 +91,13 @@ import {
 } from "./options.js";
 import { renderPromptAttachmentAsText } from "../../prompt-attachments.js";
 import { discoverClaudeModels, killExitingClaudeModelDiscoveries } from "./model-discovery.js";
-import { claudeQuery, type ClaudeOptions, type ClaudeQueryFactory } from "./query.js";
+import {
+  claudeQuery,
+  probeClaudeLaunchVersion,
+  type ClaudeLaunchVersionProbe,
+  type ClaudeOptions,
+  type ClaudeQueryFactory,
+} from "./query.js";
 import {
   findSteeredMessageParent,
   realClaudeRewindSdk,
@@ -510,13 +517,19 @@ interface ClaudeAgentSessionOptions {
   handle?: AgentPersistenceHandle;
   agentId?: string;
   launchEnv?: Record<string, string>;
+  wrap?: AgentLaunchContext["wrap"];
   persistSession?: boolean;
   logger: Logger;
   queryFactory?: ClaudeQueryFactory;
   resolveBinary: () => Promise<string>;
   independentUltracode: boolean;
+  resolveMcpServersDelivery: (
+    launch: ClaudeLaunchVersionProbe,
+  ) => Promise<ClaudeMcpServersDelivery>;
   rewindSdk?: ClaudeRewindSdk;
 }
+
+type ClaudeMcpServersDelivery = NonNullable<ClaudeOptions["mcpServersDelivery"]>;
 
 type ClaudeThinkingEffort = "low" | "medium" | "high" | "xhigh" | "max";
 type ClaudeThinkingOption =
@@ -1654,7 +1667,11 @@ export class ClaudeAgentClient implements AgentClient {
   private readonly queryFactory?: ClaudeQueryFactory;
   private readonly resolveBinary: () => Promise<string>;
   private readonly resolveVersion: (signal?: AbortSignal) => Promise<string>;
+  private readonly resolveLaunchVersion: (
+    launch: ClaudeLaunchVersionProbe,
+  ) => Promise<string | null>;
   private version: Promise<string | undefined> | undefined;
+  private warnedMcpServersOnArgv = false;
   private readonly lookupLatestRelease: LatestReleaseLookup;
   private readonly rewindSdk: ClaudeRewindSdk;
   private readonly scheduleImportDescriptors = createImportDescriptorScheduler(
@@ -1677,6 +1694,9 @@ export class ClaudeAgentClient implements AgentClient {
     this.resolveVersion =
       options.resolveVersion ??
       ((signal) => resolveClaudeCodeVersion(this.runtimeSettings, signal));
+    this.resolveLaunchVersion = options.resolveVersion
+      ? () => this.resolveVersion()
+      : async (launch) => parseReportedClaudeVersion(await probeClaudeLaunchVersion(launch));
     this.lookupLatestRelease =
       options.lookupLatestRelease ??
       ((input) =>
@@ -1702,11 +1722,13 @@ export class ClaudeAgentClient implements AgentClient {
       runtimeSettings: this.runtimeSettings,
       agentId: launchContext?.agentId,
       launchEnv: launchContext?.env,
+      wrap: launchContext?.wrap,
       persistSession: options?.persistSession,
       logger: this.logger,
       queryFactory: this.queryFactory,
       resolveBinary: this.resolveBinary,
       independentUltracode: await this.supportsIndependentUltracode(),
+      resolveMcpServersDelivery: (launch) => this.resolveMcpServersDelivery(launch),
       rewindSdk: this.rewindSdk,
     });
   }
@@ -1733,10 +1755,12 @@ export class ClaudeAgentClient implements AgentClient {
       handle,
       agentId: launchContext?.agentId,
       launchEnv: launchContext?.env,
+      wrap: launchContext?.wrap,
       logger: this.logger,
       queryFactory: this.queryFactory,
       resolveBinary: this.resolveBinary,
       independentUltracode: await this.supportsIndependentUltracode(),
+      resolveMcpServersDelivery: (launch) => this.resolveMcpServersDelivery(launch),
       rewindSdk: this.rewindSdk,
     });
     await session.ensureHistoryReady();
@@ -1841,8 +1865,27 @@ export class ClaudeAgentClient implements AgentClient {
     return supportsIndependentClaudeUltracode(await this.version);
   }
 
+  private async resolveMcpServersDelivery(
+    launch: ClaudeLaunchVersionProbe,
+  ): Promise<ClaudeMcpServersDelivery> {
+    // The installed version can change between SDK launches in the same session.
+    const version = (await this.resolveLaunchVersion(launch).catch(() => null)) ?? undefined;
+    if (supportsClaudeMcpServersViaInitialize(version)) {
+      return "initialize";
+    }
+    if (this.warnedMcpServersOnArgv) {
+      return "argv";
+    }
+    this.warnedMcpServersOnArgv = true;
+    this.logger.warn(
+      { claudeCodeVersion: version ?? null },
+      "Claude Code is too old or reports no version; MCP server headers go on its command line",
+    );
+    return "argv";
+  }
+
   async listImportableSessions(
-    options?: ListImportableSessionsOptions & { signal?: AbortSignal },
+    options?: ListImportableSessionsOptions,
   ): Promise<ImportableProviderSession[]> {
     // Leave time to deliver the provider error before the client RPC expires at 60 seconds.
     const deadline = AbortSignal.timeout(45_000);
@@ -2074,22 +2117,23 @@ async function readClaudeCodeVersion(
   const installed = await resolveInstalledClaude(runtimeSettings);
   if (!installed) return { status: "not_installed" };
   const { executable } = installed;
-  const { stdout, stderr } = await execCommand(executable, [...installed.args, "--version"], {
+  const output = await execCommand(executable, [...installed.args, "--version"], {
     ...createProviderEnvSpec({ runtimeSettings }),
     timeout: 5_000,
     signal,
   });
-  // A wrapper command (the `command` provider setting) prints its own version here
+  return { status: "installed", version: parseReportedClaudeVersion(output) };
+}
+
+function parseReportedClaudeVersion({ stdout, stderr }: { stdout: string; stderr: string }) {
+  // A wrapper command (the `command` provider setting) may print its own version here
   // instead of Claude Code's. Only trust output that identifies itself as Claude Code,
   // so a wrapper's version can't mis-gate models behind a minimumClaudeCodeVersion.
   const rawVersionOutput = `${stdout}\n${stderr}`;
   const version = /\d+\.\d+\.\d+\s+\(Claude Code\)/i.test(rawVersionOutput)
     ? parseClaudeCodeVersion(rawVersionOutput)
     : null;
-  return {
-    status: "installed",
-    version: version ? version.join(".") : null,
-  };
+  return version ? version.join(".") : null;
 }
 
 async function resolveClaudeAuth(
@@ -2431,6 +2475,7 @@ class ClaudeAgentSession implements AgentSession {
 
   private readonly config: ClaudeAgentConfig;
   private readonly launchEnv?: Record<string, string>;
+  private readonly wrap?: AgentLaunchContext["wrap"];
   private readonly agentId?: string;
   private readonly defaults?: { agents?: Record<string, AgentDefinition> };
   private readonly runtimeSettings?: ProviderRuntimeSettings;
@@ -2439,6 +2484,7 @@ class ClaudeAgentSession implements AgentSession {
   private readonly queryFactory?: ClaudeQueryFactory;
   private readonly resolveBinary: () => Promise<string>;
   private readonly independentUltracode: boolean;
+  private readonly resolveMcpServersDelivery: ClaudeAgentSessionOptions["resolveMcpServersDelivery"];
   private query: Query | null = null;
   private readonly runtimeSafety = new ClaudeRuntimeSafety();
   private readonly backgroundStops = new Map<string, (outcome: string) => void>();
@@ -2585,6 +2631,7 @@ class ClaudeAgentSession implements AgentSession {
     this.config = config;
     assertClaudeThinkingOptionSupported(config.model, config.thinkingOptionId);
     this.launchEnv = options.launchEnv;
+    this.wrap = options.wrap;
     this.agentId = options.agentId;
     this.defaults = options.defaults;
     this.runtimeSettings = options.runtimeSettings;
@@ -2594,6 +2641,7 @@ class ClaudeAgentSession implements AgentSession {
     this.queryFactory = options.queryFactory;
     this.resolveBinary = options.resolveBinary;
     this.independentUltracode = options.independentUltracode;
+    this.resolveMcpServersDelivery = options.resolveMcpServersDelivery;
     this.rewindSdk = options.rewindSdk ?? realClaudeRewindSdk;
     this.contextUsage = new ClaudeContextUsageState(
       getClaudeContextWindowMaxTokens(this.config.model),
@@ -3321,6 +3369,11 @@ class ClaudeAgentSession implements AgentSession {
     return this.persistence;
   }
 
+  hasPendingWakeup(): boolean {
+    // A delivered task notification opens its turn only with the next init.
+    return this.notificationTurnId !== null || this.runtimeSafety.hasPendingWakeup();
+  }
+
   async canStopRuntime(): Promise<boolean> {
     return (
       !this.activeForegroundTurnId &&
@@ -3885,6 +3938,7 @@ class ClaudeAgentSession implements AgentSession {
       {
         runtimeSettings: this.runtimeSettings,
         launchEnv: this.launchEnv,
+        wrap: this.wrap,
         queryFactory: this.queryFactory,
         onChildProcess: (child) => {
           this.childProcess = child;
@@ -4089,6 +4143,15 @@ class ClaudeAgentSession implements AgentSession {
 
     if (this.config.mcpServers) {
       base.mcpServers = this.normalizeMcpServers(this.config.mcpServers);
+      if (Object.keys(base.mcpServers).length > 0) {
+        base.mcpServersDelivery = await this.resolveMcpServersDelivery({
+          executable: claudeBinary,
+          cwd: this.config.cwd,
+          env: sdkEnv,
+          runtimeSettings: this.runtimeSettings,
+          launchEnv: this.launchEnv,
+        });
+      }
     }
 
     if (this.config.model) {
@@ -4549,8 +4612,8 @@ class ClaudeAgentSession implements AgentSession {
       { agentId: this.agentId, pid: child.pid, code, signal },
       "Claude runtime exited unexpectedly",
     );
-    this.failRunningRuntimeTasks();
     if (this.activeForegroundTurnId || this.autonomousTurn) {
+      this.failRunningRuntimeTasks();
       // The pump is about to throw. It waits for stderr to flush and reports the
       // real cause; reporting here first would replace that with a bare exit code
       // and detach this.query, which is how the pump recognizes its own stream.
@@ -4560,11 +4623,14 @@ class ClaudeAgentSession implements AgentSession {
     // failing against a dead transport forever.
     this.query = null;
     this.input = null;
+    // The failure goes first: an idle agent whose background work just ended
+    // otherwise reads as settled to anyone waiting for it to finish.
     this.dispatchEvents([
       this.buildTurnFailedEvent(
         `Claude stopped unexpectedly (${signal ? `signal ${signal}` : `exit code ${code ?? "unknown"}`}). Any background shells, monitors or other work it had running were terminated with it.`,
       ),
     ]);
+    this.failRunningRuntimeTasks();
   }
 
   private failRunningRuntimeTasks(): void {
@@ -6890,10 +6956,8 @@ async function readClaudeReplayParentFacts(
   const linksByAgentId = new Map<string, { toolCallId: string }>();
   const outcomes: Map<string, { status: ProviderSubagentStatus }> = new Map();
   for await (const entry of entries) {
-    const notification = readTaskNotificationFromHistoryRecord(entry);
-    const status = mapTaskStatus(notification?.status ?? undefined);
-    if (notification?.toolUseId && status) {
-      outcomes.set(notification.toolUseId, { status });
+    for (const notificationOutcome of readClaudeReplayNotificationOutcomes(entry, linksByAgentId)) {
+      outcomes.set(notificationOutcome.toolCallId, { status: notificationOutcome.status });
     }
     const content = toObjectRecord(entry.message)?.content;
     if (!Array.isArray(content)) continue;
@@ -6911,6 +6975,7 @@ async function readClaudeReplayParentFacts(
         outcomes.set(block.tool_use_id, {
           status: block.is_error === true ? "failed" : "completed",
         });
+      if (!toolCalls.has(block.tool_use_id)) continue;
       const agentId = readLegacyClaudeSubagentId(block.content);
       if (agentId)
         linksByAgentId.set(agentId, {
@@ -6923,6 +6988,26 @@ async function readClaudeReplayParentFacts(
     linksByAgentId,
     outcomesByToolCallId: new Map([...outcomes].filter(([id]) => toolCalls.has(id))),
   };
+}
+
+function* readClaudeReplayNotificationOutcomes(
+  entry: ClaudeHistoryEntry,
+  linksByAgentId: ReadonlyMap<string, { toolCallId: string }>,
+): Generator<{ toolCallId: string; status: ProviderSubagentStatus }> {
+  const notification = readTaskNotificationOutcomeFromHistoryRecord(entry);
+  if (!notification) return;
+  const status = mapTaskStatus(notification.status ?? undefined);
+  if (!status) return;
+
+  if (notification.toolUseId) {
+    yield { toolCallId: notification.toolUseId, status };
+    return;
+  }
+  // Stopped tasks can omit tool-use-id; their launch results already link the native IDs.
+  for (const taskId of notification.taskIds) {
+    const link = linksByAgentId.get(taskId);
+    if (link) yield { toolCallId: link.toolCallId, status };
+  }
 }
 
 function readClaudeReplayTaskDeclaration(

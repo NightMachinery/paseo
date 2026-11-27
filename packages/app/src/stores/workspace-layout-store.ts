@@ -20,6 +20,7 @@ import {
   closePaneInLayout,
   closeTabInLayout,
   collectAllPanes,
+  collectAllPanesIncludingHidden,
   collectAllTabs,
   convertDraftToAgentInLayout,
   createTabInLayout,
@@ -71,6 +72,10 @@ import { isSheetTabModified, resolveCompactSheetPolicy } from "@/workspace-tabs/
 import { panelResourceKey, type CompactSheetPolicy } from "@/panels/panel-manifest";
 import { createValidatedPersistStorage } from "@/storage/validated-persist-storage";
 import { panelTargetSupportsHostForWorkspaceKey } from "@/plugins/workspace-panels/locations";
+import {
+  syncPaneTabFocusHistory,
+  type PaneTabFocusHistory,
+} from "@/stores/workspace-tab-focus-policy";
 
 export {
   AMBIENT_PLACEMENT,
@@ -155,6 +160,7 @@ interface WorkspaceLayoutStore {
   pinnedAgentIdsByWorkspace: Record<string, Set<string>>;
   hiddenAgentIdsByWorkspace: Record<string, Set<string>>;
   focusRestorationByWorkspace: Record<string, WorkspaceFocusRestorationState>;
+  paneTabFocusHistoryByWorkspace: Record<string, PaneTabFocusHistory>;
   explorerSidebarPaneIdByWorkspace: Record<string, string | null>;
   sidePaneIdByWorkspace: Record<string, string | null>;
   /** Workspaces where PR detection already added its tab once; a closed tab never returns. */
@@ -701,6 +707,35 @@ function withoutFocusRestoration(
   return { focusRestorationByWorkspace };
 }
 
+function withUpdatedWorkspaceLayout(
+  state: Pick<WorkspaceLayoutStore, "layoutByWorkspace" | "paneTabFocusHistoryByWorkspace">,
+  workspaceKey: string,
+  nextLayout: WorkspaceLayout,
+  renamedTab?: { from: string; to: string } | null,
+): Pick<WorkspaceLayoutStore, "layoutByWorkspace" | "paneTabFocusHistoryByWorkspace"> {
+  const previousLayout = state.layoutByWorkspace[workspaceKey] ?? null;
+  const previousHistory = state.paneTabFocusHistoryByWorkspace[workspaceKey];
+  const nextHistory = syncPaneTabFocusHistory({
+    previousHistory,
+    previousPanes: previousLayout ? collectAllPanesIncludingHidden(previousLayout.root) : [],
+    nextPanes: collectAllPanesIncludingHidden(nextLayout.root),
+    renamedTab,
+  });
+  return {
+    layoutByWorkspace: {
+      ...state.layoutByWorkspace,
+      [workspaceKey]: nextLayout,
+    },
+    paneTabFocusHistoryByWorkspace:
+      nextHistory === previousHistory
+        ? state.paneTabFocusHistoryByWorkspace
+        : {
+            ...state.paneTabFocusHistoryByWorkspace,
+            [workspaceKey]: nextHistory,
+          },
+  };
+}
+
 function reconcileRememberedSidePane(
   state: WorkspaceLayoutStore,
   workspaceKey: string,
@@ -885,6 +920,7 @@ function promoteSheetToTab(
     now: tab.createdAt,
     createTabId: () => tab.tabId,
     state: tab.state,
+    paneFocusHistory: state.paneTabFocusHistoryByWorkspace[workspaceKey],
   };
   const result = isTargetOpenAsTab(placement.layout, tab.target)
     ? revealTargetInLayout(input)
@@ -912,7 +948,7 @@ function promoteSheetToTab(
               tab.target.agentId,
             )
           : state.hiddenAgentIdsByWorkspace,
-      layoutByWorkspace: { ...state.layoutByWorkspace, [workspaceKey]: nextLayout },
+      ...withUpdatedWorkspaceLayout(state, workspaceKey, nextLayout),
     },
   };
 }
@@ -1121,6 +1157,7 @@ export function createWorkspaceLayoutStore(
         pinnedAgentIdsByWorkspace: {},
         hiddenAgentIdsByWorkspace: {},
         focusRestorationByWorkspace: {},
+        paneTabFocusHistoryByWorkspace: {},
         explorerSidebarPaneIdByWorkspace: {},
         sidePaneIdByWorkspace: {},
         pullRequestTabAutoOpenedByWorkspace: {},
@@ -1211,6 +1248,7 @@ export function createWorkspaceLayoutStore(
               target: normalizedTarget,
               now: Date.now(),
               createTabId: createWorkspaceTabInstanceId,
+              paneFocusHistory: get().paneTabFocusHistoryByWorkspace[normalizedWorkspaceKey],
             });
           }
           if (!result) {
@@ -1232,6 +1270,13 @@ export function createWorkspaceLayoutStore(
             placement.layout.focusedPaneId,
           );
           const shouldPinAgent = input.pin === true && normalizedTarget.kind === "agent";
+          const finalLayout = parentTabId
+            ? attachParentTab({
+                layout: nextLayout,
+                childTabId: result.tabId,
+                parentTabId,
+              })
+            : nextLayout;
           set((state) => ({
             ...withoutFocusRestoration(state, normalizedWorkspaceKey),
             ...advancePanelRevision(state, normalizedWorkspaceKey, result.tabId, normalizedTarget),
@@ -1255,16 +1300,7 @@ export function createWorkspaceLayoutStore(
                   normalizedTarget.agentId,
                 )
               : state.pinnedAgentIdsByWorkspace,
-            layoutByWorkspace: {
-              ...state.layoutByWorkspace,
-              [normalizedWorkspaceKey]: parentTabId
-                ? attachParentTab({
-                    layout: nextLayout,
-                    childTabId: result.tabId,
-                    parentTabId,
-                  })
-                : nextLayout,
-            },
+            ...withUpdatedWorkspaceLayout(state, normalizedWorkspaceKey, finalLayout),
           }));
           return result.tabId;
         },
@@ -1316,14 +1352,15 @@ export function createWorkspaceLayoutStore(
               normalizedWorkspaceKey,
             );
             return {
-              layoutByWorkspace: {
-                ...state.layoutByWorkspace,
-                [normalizedWorkspaceKey]: keepWorkspaceFocusOutOfExplorerSidebar(
+              ...withUpdatedWorkspaceLayout(
+                state,
+                normalizedWorkspaceKey,
+                keepWorkspaceFocusOutOfExplorerSidebar(
                   currentLayout,
                   paneId,
                   currentLayout.focusedPaneId,
                 ),
-              },
+              ),
               explorerSidebarPaneIdByWorkspace: {
                 ...state.explorerSidebarPaneIdByWorkspace,
                 [normalizedWorkspaceKey]: paneId,
@@ -1338,9 +1375,7 @@ export function createWorkspaceLayoutStore(
           set((state) => {
             const layout = state.layoutByWorkspace[workspaceKey];
             const next = setPaneHiddenInLayout({ layout, paneId, hidden: false });
-            return next
-              ? { layoutByWorkspace: { ...state.layoutByWorkspace, [workspaceKey]: next } }
-              : state;
+            return next ? withUpdatedWorkspaceLayout(state, workspaceKey, next) : state;
           });
           return paneId;
         },
@@ -1363,12 +1398,7 @@ export function createWorkspaceLayoutStore(
               return state;
             }
 
-            return {
-              layoutByWorkspace: {
-                ...state.layoutByWorkspace,
-                [normalizedWorkspaceKey]: nextLayout,
-              },
-            };
+            return withUpdatedWorkspaceLayout(state, normalizedWorkspaceKey, nextLayout);
           });
         },
         ensureSidePane: (workspaceKey, options) => {
@@ -1400,13 +1430,13 @@ export function createWorkspaceLayoutStore(
           }
           set((state) => ({
             ...withoutFocusRestoration(state, normalizedWorkspaceKey),
-            layoutByWorkspace: {
-              ...state.layoutByWorkspace,
-              [normalizedWorkspaceKey]:
-                options?.focus === false
-                  ? { ...result.layout, focusedPaneId: layout.focusedPaneId }
-                  : result.layout,
-            },
+            ...withUpdatedWorkspaceLayout(
+              state,
+              normalizedWorkspaceKey,
+              options?.focus === false
+                ? { ...result.layout, focusedPaneId: layout.focusedPaneId }
+                : result.layout,
+            ),
             sidePaneIdByWorkspace: {
               ...state.sidePaneIdByWorkspace,
               [normalizedWorkspaceKey]: result.paneId,
@@ -1453,10 +1483,7 @@ export function createWorkspaceLayoutStore(
               return {
                 ...withoutFocusRestoration(state, normalizedWorkspaceKey),
                 ...reconcileRememberedSidePane(state, normalizedWorkspaceKey, nextLayout),
-                layoutByWorkspace: {
-                  ...state.layoutByWorkspace,
-                  [normalizedWorkspaceKey]: nextLayout,
-                },
+                ...withUpdatedWorkspaceLayout(state, normalizedWorkspaceKey, nextLayout),
               };
             }
             const closedLayout = closeTabInLayout({
@@ -1488,10 +1515,7 @@ export function createWorkspaceLayoutStore(
             return {
               ...withoutFocusRestoration(state, normalizedWorkspaceKey),
               ...reconcileRememberedSidePane(state, normalizedWorkspaceKey, nextLayout),
-              layoutByWorkspace: {
-                ...state.layoutByWorkspace,
-                [normalizedWorkspaceKey]: nextLayout,
-              },
+              ...withUpdatedWorkspaceLayout(state, normalizedWorkspaceKey, nextLayout),
             };
           });
         },
@@ -1553,9 +1577,9 @@ export function createWorkspaceLayoutStore(
               ...withoutFocusRestoration(state, normalizedWorkspaceKey),
               // Choosing a tab dismisses the sheets that cover it.
               ...dismissSheets(state, normalizedWorkspaceKey),
-              layoutByWorkspace: nextLayout
-                ? { ...state.layoutByWorkspace, [normalizedWorkspaceKey]: nextLayout }
-                : state.layoutByWorkspace,
+              ...(nextLayout
+                ? withUpdatedWorkspaceLayout(state, normalizedWorkspaceKey, nextLayout)
+                : {}),
             };
           });
         },
@@ -1579,10 +1603,11 @@ export function createWorkspaceLayoutStore(
                   focusRequest: { workspaceKey: normalizedWorkspaceKey, tabId: normalizedTabId },
                   // Choosing a tab dismisses the sheets that cover it.
                   ...dismissSheets(state, normalizedWorkspaceKey),
-                  layoutByWorkspace: {
-                    ...state.layoutByWorkspace,
-                    [normalizedWorkspaceKey]: nextLayout ?? layout,
-                  },
+                  ...withUpdatedWorkspaceLayout(
+                    state,
+                    normalizedWorkspaceKey,
+                    nextLayout ?? layout,
+                  ),
                 }
               : state;
           });
@@ -1634,6 +1659,8 @@ export function createWorkspaceLayoutStore(
             state: tabState,
           });
           if (!result) return null;
+          const renamedTab =
+            result.tabId !== normalizedTabId ? { from: normalizedTabId, to: result.tabId } : null;
           set((state) => ({
             ...withoutFocusRestoration(state, normalizedWorkspaceKey),
             ...advancePanelRevision(state, normalizedWorkspaceKey, result.tabId, normalizedTarget),
@@ -1645,10 +1672,7 @@ export function createWorkspaceLayoutStore(
                     normalizedWorkspaceKey,
                     normalizedTarget.agentId,
                   ),
-            layoutByWorkspace: {
-              ...state.layoutByWorkspace,
-              [normalizedWorkspaceKey]: result.layout,
-            },
+            ...withUpdatedWorkspaceLayout(state, normalizedWorkspaceKey, result.layout, renamedTab),
           }));
           return result.tabId;
         },
@@ -1672,12 +1696,7 @@ export function createWorkspaceLayoutStore(
               state: tabState,
             });
             if (!layout) return state;
-            return {
-              layoutByWorkspace: {
-                ...state.layoutByWorkspace,
-                [normalizedWorkspaceKey]: layout,
-              },
-            };
+            return withUpdatedWorkspaceLayout(state, normalizedWorkspaceKey, layout);
           });
         },
         convertDraftToAgent: (workspaceKey, tabId, agentId) => {
@@ -1702,6 +1721,8 @@ export function createWorkspaceLayoutStore(
             return null;
           }
 
+          const renamedTab =
+            result.tabId !== normalizedTabId ? { from: normalizedTabId, to: result.tabId } : null;
           set((state) => ({
             ...(result.layout.focusedPaneId !== null
               ? (withoutFocusRestoration(state, normalizedWorkspaceKey) ?? {})
@@ -1711,10 +1732,7 @@ export function createWorkspaceLayoutStore(
               normalizedWorkspaceKey,
               normalizedAgentId,
             ),
-            layoutByWorkspace: {
-              ...state.layoutByWorkspace,
-              [normalizedWorkspaceKey]: result.layout,
-            },
+            ...withUpdatedWorkspaceLayout(state, normalizedWorkspaceKey, result.layout, renamedTab),
           }));
 
           return result.tabId;
@@ -1823,10 +1841,7 @@ export function createWorkspaceLayoutStore(
             return {
               ...(sheetAgentGone ? withSheets(state, normalizedWorkspaceKey, fittingSheets) : {}),
               pinnedAgentIdsByWorkspace,
-              layoutByWorkspace: {
-                ...state.layoutByWorkspace,
-                [normalizedWorkspaceKey]: nextLayout,
-              },
+              ...withUpdatedWorkspaceLayout(state, normalizedWorkspaceKey, nextLayout),
             };
           });
         },
@@ -1845,12 +1860,7 @@ export function createWorkspaceLayoutStore(
               return state;
             }
 
-            return {
-              layoutByWorkspace: {
-                ...state.layoutByWorkspace,
-                [normalizedWorkspaceKey]: nextLayout,
-              },
-            };
+            return withUpdatedWorkspaceLayout(state, normalizedWorkspaceKey, nextLayout);
           });
         },
         getWorkspaceTabs: (workspaceKey) => {
@@ -1899,6 +1909,7 @@ export function createWorkspaceLayoutStore(
             position: input.position,
             maxTreeDepth: MAX_TREE_DEPTH,
             createNodeId: ids.createNodeId,
+            paneFocusHistory: get().paneTabFocusHistoryByWorkspace[normalizedWorkspaceKey],
           });
           if (!result) {
             return null;
@@ -1906,10 +1917,7 @@ export function createWorkspaceLayoutStore(
 
           set((state) => ({
             ...withoutFocusRestoration(state, normalizedWorkspaceKey),
-            layoutByWorkspace: {
-              ...state.layoutByWorkspace,
-              [normalizedWorkspaceKey]: result.layout,
-            },
+            ...withUpdatedWorkspaceLayout(state, normalizedWorkspaceKey, result.layout),
           }));
 
           return result.paneId;
@@ -1943,10 +1951,7 @@ export function createWorkspaceLayoutStore(
 
           set((state) => ({
             ...withoutFocusRestoration(state, normalizedWorkspaceKey),
-            layoutByWorkspace: {
-              ...state.layoutByWorkspace,
-              [normalizedWorkspaceKey]: result.layout,
-            },
+            ...withUpdatedWorkspaceLayout(state, normalizedWorkspaceKey, result.layout),
           }));
 
           return result.paneId;
@@ -1985,6 +1990,7 @@ export function createWorkspaceLayoutStore(
               tabId: normalizedTabId,
               toPaneId: normalizedToPaneId,
               explorerSidebarPaneId,
+              paneFocusHistory: state.paneTabFocusHistoryByWorkspace[normalizedWorkspaceKey],
             });
             if (!nextLayout) {
               return state;
@@ -2002,10 +2008,7 @@ export function createWorkspaceLayoutStore(
 
             return {
               ...withoutFocusRestoration(state, normalizedWorkspaceKey),
-              layoutByWorkspace: {
-                ...state.layoutByWorkspace,
-                [normalizedWorkspaceKey]: normalizedNextLayout,
-              },
+              ...withUpdatedWorkspaceLayout(state, normalizedWorkspaceKey, normalizedNextLayout),
               sidePaneIdByWorkspace:
                 rememberedSidePaneId &&
                 !findPaneById(normalizedNextLayout.root, rememberedSidePaneId)
@@ -2043,10 +2046,7 @@ export function createWorkspaceLayoutStore(
 
             return {
               ...withoutFocusRestoration(state, normalizedWorkspaceKey),
-              layoutByWorkspace: {
-                ...state.layoutByWorkspace,
-                [normalizedWorkspaceKey]: nextLayout,
-              },
+              ...withUpdatedWorkspaceLayout(state, normalizedWorkspaceKey, nextLayout),
               sidePaneIdByWorkspace:
                 state.sidePaneIdByWorkspace[normalizedWorkspaceKey] === normalizedPaneId
                   ? {
@@ -2092,9 +2092,9 @@ export function createWorkspaceLayoutStore(
                 ? { workspaceKey: normalizedWorkspaceKey, tabId: pane.focusedTabId }
                 : null,
               ...withoutFocusRestoration(state, normalizedWorkspaceKey),
-              layoutByWorkspace: nextLayout
-                ? { ...state.layoutByWorkspace, [normalizedWorkspaceKey]: nextLayout }
-                : state.layoutByWorkspace,
+              ...(nextLayout
+                ? withUpdatedWorkspaceLayout(state, normalizedWorkspaceKey, nextLayout)
+                : {}),
             };
           });
         },
@@ -2118,11 +2118,11 @@ export function createWorkspaceLayoutStore(
                   tokens: [...(currentRestoration?.tokens ?? []), token],
                 },
               },
-              layoutByWorkspace: {
-                ...state.layoutByWorkspace,
-                [normalizedWorkspaceKey]:
-                  layout.focusedPaneId === null ? layout : { ...layout, focusedPaneId: null },
-              },
+              ...withUpdatedWorkspaceLayout(
+                state,
+                normalizedWorkspaceKey,
+                layout.focusedPaneId === null ? layout : { ...layout, focusedPaneId: null },
+              ),
             };
           });
           return token;
@@ -2173,13 +2173,10 @@ export function createWorkspaceLayoutStore(
 
             return {
               focusRestorationByWorkspace: remainingRestorations,
-              layoutByWorkspace: {
-                ...state.layoutByWorkspace,
-                [normalizedWorkspaceKey]: {
-                  ...layout,
-                  focusedPaneId: restorePaneId,
-                },
-              },
+              ...withUpdatedWorkspaceLayout(state, normalizedWorkspaceKey, {
+                ...layout,
+                focusedPaneId: restorePaneId,
+              }),
             };
           });
         },
@@ -2232,10 +2229,7 @@ export function createWorkspaceLayoutStore(
 
             return {
               ...withoutFocusRestoration(state, normalizedWorkspaceKey),
-              layoutByWorkspace: {
-                ...state.layoutByWorkspace,
-                [normalizedWorkspaceKey]: nextLayout,
-              },
+              ...withUpdatedWorkspaceLayout(state, normalizedWorkspaceKey, nextLayout),
             };
           });
         },
@@ -2333,6 +2327,7 @@ export function createWorkspaceLayoutStore(
               normalizedWorkspaceKey in state.pinnedAgentIdsByWorkspace ||
               normalizedWorkspaceKey in state.hiddenAgentIdsByWorkspace ||
               normalizedWorkspaceKey in state.focusRestorationByWorkspace ||
+              normalizedWorkspaceKey in state.paneTabFocusHistoryByWorkspace ||
               normalizedWorkspaceKey in state.explorerSidebarPaneIdByWorkspace ||
               normalizedWorkspaceKey in state.sidePaneIdByWorkspace ||
               normalizedWorkspaceKey in state.pullRequestTabAutoOpenedByWorkspace ||
@@ -2360,6 +2355,8 @@ export function createWorkspaceLayoutStore(
               state.hiddenAgentIdsByWorkspace;
             const { [normalizedWorkspaceKey]: _restoration, ...focusRestorationByWorkspace } =
               state.focusRestorationByWorkspace;
+            const { [normalizedWorkspaceKey]: _focusHistory, ...paneTabFocusHistoryByWorkspace } =
+              state.paneTabFocusHistoryByWorkspace;
             const {
               [normalizedWorkspaceKey]: _explorerSidebarPane,
               ...explorerSidebarPaneIdByWorkspace
@@ -2376,6 +2373,7 @@ export function createWorkspaceLayoutStore(
               pinnedAgentIdsByWorkspace,
               hiddenAgentIdsByWorkspace,
               focusRestorationByWorkspace,
+              paneTabFocusHistoryByWorkspace,
               explorerSidebarPaneIdByWorkspace,
               sidePaneIdByWorkspace,
             };
