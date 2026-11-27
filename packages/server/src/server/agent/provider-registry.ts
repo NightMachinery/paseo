@@ -507,6 +507,25 @@ export function wrapSessionProvider(provider: AgentProvider, inner: AgentSession
   } satisfies ForwardedAgentSession;
 }
 
+function forwardNativeSessionMethods(
+  inner: AgentClient,
+): Pick<
+  AgentClient,
+  "resolveNativeTranscript" | "archiveNativeSession" | "unarchiveNativeSession"
+> {
+  const archive = inner.archiveNativeSession?.bind(inner);
+  const unarchive = inner.unarchiveNativeSession?.bind(inner);
+  return {
+    resolveNativeTranscript: inner.resolveNativeTranscript?.bind(inner),
+    archiveNativeSession: archive
+      ? async (handle) => await archive({ ...handle, provider: inner.provider })
+      : undefined,
+    unarchiveNativeSession: unarchive
+      ? async (handle) => await unarchive({ ...handle, provider: inner.provider })
+      : undefined,
+  };
+}
+
 function wrapClientProvider(
   provider: AgentProvider,
   inner: AgentClient,
@@ -519,8 +538,6 @@ function wrapClientProvider(
   const listImportableSessions = inner.listImportableSessions?.bind(inner);
   const importSession = inner.importSession?.bind(inner);
   const listControls = inner.listControls?.bind(inner);
-  const archiveNativeSession = inner.archiveNativeSession?.bind(inner);
-  const unarchiveNativeSession = inner.unarchiveNativeSession?.bind(inner);
   const configuredModelIds = [...profileModels, ...additionalModels].map((model) => model.id);
   // Converted where it is used, so a malformed configured default fails the call that reads it
   // rather than the registry that holds every provider.
@@ -603,7 +620,7 @@ function wrapClientProvider(
             providerOptions: withDefaults(config.providerOptions),
           })
       : undefined,
-    resolveNativeTranscript: inner.resolveNativeTranscript?.bind(inner),
+    ...forwardNativeSessionMethods(inner),
     listImportableSessions: listImportableSessions
       ? async (options) =>
           await listImportableSessions({ ...options, providerOptions: configuredDefaults() })
@@ -637,12 +654,6 @@ function wrapClientProvider(
             persistence,
           };
         }
-      : undefined,
-    archiveNativeSession: archiveNativeSession
-      ? async (handle) => await archiveNativeSession({ ...handle, provider: inner.provider })
-      : undefined,
-    unarchiveNativeSession: unarchiveNativeSession
-      ? async (handle) => await unarchiveNativeSession({ ...handle, provider: inner.provider })
       : undefined,
     resolveUsageLaunch: inner.resolveUsageLaunch?.bind(inner),
     requireLaunchWrap: inner.requireLaunchWrap?.bind(inner),
