@@ -8,7 +8,7 @@ import { openSettingsSection } from "../support/helpers/settings";
 async function openAppDiagnostic(page: Page) {
   await gotoAppShell(page);
   await openSettings(page);
-  await openSettingsSection(page, "diagnostics");
+  await openSettingsSection(page, "about");
   await page.getByRole("button", { name: "Run", exact: true }).click();
   const sheet = page.getByTestId("app-diagnostic-sheet");
   await expect(sheet).toBeVisible();

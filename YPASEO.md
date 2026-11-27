@@ -339,7 +339,7 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   well, the app also dropped it from its parent's subagent track, so it showed nowhere. Drop if
   upstream adopts equivalent guidance.
 
-- **App diagnostic exports and sends client logs.** Settings > Diagnostics can
+- **App diagnostic exports and sends client logs.** Settings > About > Diagnostics can
   share a redacted report, send it to a compatible host, or clear the local
   capture. Android includes app-process logcat. App code lives in
   `packages/app/src/diagnostics/client-log-*` and
