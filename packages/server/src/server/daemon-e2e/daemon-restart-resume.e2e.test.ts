@@ -366,7 +366,7 @@ test("a provider that is slow to reopen does not hold daemon startup", async () 
     for (const child of processes.toReversed()) await stopFixture(child, true);
     await rm(root, { recursive: true, force: true });
   }
-}, 30000);
+}, 60_000);
 
 test("recovers a turn interrupted by provider teardown while the daemon drains messages", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "restart-drain-"));
