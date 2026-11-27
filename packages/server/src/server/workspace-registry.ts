@@ -928,7 +928,7 @@ export class FileBackedWorkspaceRegistry
       state = { ...next, revision: revision + 1 };
       return [{ ...existing, tabLayout: state }];
     });
-    if (workspace) {
+    if (workspace && !this.isBroadcastDeferred(workspaceId)) {
       await this.notifyMutation({ kind: "upsert", workspaceId, workspace });
     }
     if (!state) throw new Error("Workspace tab layout unavailable");
@@ -961,9 +961,11 @@ export class FileBackedWorkspaceRegistry
       );
     });
     await Promise.all(
-      changed.map((workspace) =>
-        this.notifyMutation({ kind: "upsert", workspaceId: workspace.workspaceId, workspace }),
-      ),
+      changed
+        .filter((workspace) => !this.isBroadcastDeferred(workspace.workspaceId))
+        .map((workspace) =>
+          this.notifyMutation({ kind: "upsert", workspaceId: workspace.workspaceId, workspace }),
+        ),
     );
   }
 

@@ -702,7 +702,7 @@ describe("workspace registries", () => {
     });
   });
 
-  test("publishUpsert publishes the latest record after a concurrent update and suppresses deferred label broadcasts", async () => {
+  test("publishUpsert publishes the latest record after deferred label and tab changes", async () => {
     await workspaceRegistry.initialize();
     const record = createPersistedWorkspaceRecord({
       workspaceId: "ws-deferred-update",
@@ -721,6 +721,12 @@ describe("workspace registries", () => {
     await workspaceRegistry.upsert(record, { publish: false });
     expect(mutations).toHaveLength(0);
 
+    const tabLayout = await workspaceRegistry.applyTabLayout({
+      workspaceId: record.workspaceId,
+      seed: { tabs: [{ tabId: "agent-a", target: { kind: "agent", agentId: "agent-a" } }] },
+      operations: [],
+      syncSplits: () => false,
+    });
     await workspaceRegistry.update(record.workspaceId, (existing) => ({
       ...existing,
       title: "Renamed mid-unarchive",
@@ -730,6 +736,7 @@ describe("workspace registries", () => {
       ...(await workspaceRegistry.get(record.workspaceId))!,
       displayName: "refreshed-branch",
       updatedAt: "2026-03-02T00:01:00.000Z",
+      tabLayout: undefined,
     });
     await workspaceRegistry.commitWorkspaceLabelMutation({
       stage: (records) => {
@@ -755,6 +762,7 @@ describe("workspace registries", () => {
         title: "Renamed mid-unarchive",
         displayName: "refreshed-branch",
         labels: ["lbl_1"],
+        tabLayout,
       },
     });
   });

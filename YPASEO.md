@@ -226,7 +226,7 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   `sync-pinned-order`; drop when upstream ships it.
 - **Workspace tabs follow the host across clients.** The daemon shares open
   tabs, their order, and agent visibility through workspace updates. In host
-  settings, Sync workspace splits offers Off (the default), Desktops only, or
+  settings under Workspaces, Sync workspace splits offers Off (the default), Desktops only, or
   All devices. Older hosts keep the local layout. Proposed upstream in PR
   #10420 (Discussion #10419); related: issue #5886, PR #5887.
 - **Queue a message until the running turn ends (`--behavior queue`).** A daemon-owned
