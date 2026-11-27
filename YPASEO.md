@@ -146,16 +146,13 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   `packages/app/e2e/browser/ypaseo-workspace-activity-menu.spec.ts`. Upstream Discussion
   #9062 (a plugin panel asking for the same navigation); drop when upstream ships a
   workspace list of agents and terminals.
-- **A typed file path offers its directory in Add project's directory search.**
-  `packages/app/src/add-project-flow/typed-file-path.ts`, `project-picker-options.ts`
-  and `add-project-flow.tsx`. Daemon side after review: the exact lookup
-  (`matchMode: "exact"` in `packages/server/src/utils/directory-suggestions.ts`, feature
-  `directorySuggestionsExactMatch`), so the row needs the fork's daemon. Upstream PR #9619 (Discussion #9601); drop when merged.
-- **Add project can open on directory search.** Settings > General > Add project,
-  `packages/app/src/add-project-flow/model.ts` and `add-project-flow.tsx`; carries
-  the upstream PR's strings in every locale so it merges cleanly. The flow's footer has an
-  "Always open on directory search" checkbox bound to the same setting, also part of the PR.
-  Upstream PR #9621 (Discussion #9620); drop when merged.
+- **A typed file path offers its directory in Add project's Existing tab.**
+  `packages/app/src/add-project-flow/typed-file-path.ts` and `existing-tab.tsx`,
+  with options in `packages/app/src/components/project-picker-options.ts`.
+  The exact daemon lookup (`matchMode: "exact"` in
+  `packages/server/src/utils/directory-suggestions.ts`, feature
+  `directorySuggestionsExactMatch`) confirms a file before offering its parent.
+  Upstream PR #9619 (Discussion #9601); drop when merged or equivalent behavior ships.
 - **Cmd+N starts in a scratch workspace (a new git repository).**
   `packages/app/src/ypaseo/scratch-workspace*.ts(x)`, called from
   `packages/app/src/screens/new-workspace-screen.tsx` (in place of the project picker hook,

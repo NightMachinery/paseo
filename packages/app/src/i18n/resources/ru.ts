@@ -2666,15 +2666,6 @@ export const ru: TranslationResources = {
           queue: "Поставить в очередь",
         },
       },
-      addProject: {
-        title: "Добавить проект",
-        startOnDirectorySearch: {
-          label: "Открывать с поиска каталога",
-          inlineLabel: "Всегда открывать с поиска каталога",
-          description:
-            "Добавление проекта начинается с поиска каталога. «Назад» возвращает к другим вариантам.",
-        },
-      },
       sendShortcut: {
         label: "Сочетание клавиш для отправки",
         options: {
