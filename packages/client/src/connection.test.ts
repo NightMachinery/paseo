@@ -137,17 +137,22 @@ function connection(
   };
 }
 
-test("a plain client advertises every protocol capability and no browser host", async () => {
+test("a plain client advertises the fork's protocol capability defaults and no browser host", async () => {
   const h = connection();
   try {
     const ready = h.client.connect();
     h.open();
     await ready;
     const { browserHost: _browser, ...protocolCapabilities } = CLIENT_CAPS;
-    // Every new capability needs a deliberate default or a host-owned exception.
+    // The fork keeps legacy steer behavior by default. Browser hosting is host-owned.
     expect(h.sent).toHaveLength(1);
     expect(h.sent[0].capabilities).toEqual(
-      Object.fromEntries(Object.values(protocolCapabilities).map((key) => [key, true])),
+      Object.fromEntries(
+        Object.values(protocolCapabilities).map((key) => [
+          key,
+          key !== CLIENT_CAPS.agentActiveTurnBehaviors,
+        ]),
+      ),
     );
   } finally {
     await h.client.close();
