@@ -229,6 +229,11 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
   layouts, warns once per client, and uses the existing unavailable panel when a plugin
   cannot supply its view. Filtering affects only the received copy. Proposed upstream in PR
   #10420 (Discussion #10419); related: issue #5886, PR #5887.
+- **Use zod-aot 0.21.8 for protocol validation.** Carries the generator cleanup
+  and loose session tags from upstream PR #10296. This release includes the
+  fixes for nested discriminated unions and both former local compiler patches.
+  Drop the fork's dependency update when upstream carries equivalent generation
+  and envelope handling. See [Protocol Validation](docs/protocol-validation.md).
 - **Queue a message until the running turn ends (`--behavior queue`).** A daemon-owned
   per-agent queue (`packages/server/src/server/agent/agent-message-queue.ts`, persisted in
   `$PASEO_HOME/agent-message-queue/`) behind `AgentManager.streamAgentIfIdle`; CLI

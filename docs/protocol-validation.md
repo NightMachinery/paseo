@@ -12,7 +12,7 @@ YPaseo retries failed workspace reads after removing tab kinds and plugin tab co
 
 Keep one generated function per message type. zod-aot inlines every nested schema into the function it compiles, so compiling `WSOutboundMessageSchema` as a whole produced one 11 MB function. On V8 (daemon clients, plugin hosts, the CLI, and Electron), the Maglev tier compiled that function once it was hot, allocating about 800 MB and stalling for seconds, and compiled it again after each deoptimization. Hermes has no JIT, so mobile never showed it. `packages/protocol/tests/validation/ws-outbound.test.ts` fails if a generated function grows past 1 MB.
 
-Generated validators preserve unknown keys where Zod object parsing strips them. The client dispatch path uses known `type` and payload fields, so this passthrough behavior is accepted for inbound messages. The wire format is unchanged.
+Generated validators follow Zod's unknown-key rules. `z.object()` strips extra fields, `z.looseObject()` retains them, and `z.strictObject()` rejects them. The tag-only session envelopes use loose objects so the message body reaches the per-message validator. Declare optional fields that a client needs from newer or forked peers in the message schema. Use a loose object where a payload explicitly promises to carry arbitrary fields. The wire format is unchanged.
 
 Provider model normalization is a parser-side compatibility shim in the client consumers that need it. Newer daemons normalize at the provider registry source.
 
@@ -21,7 +21,7 @@ Provider model normalization is a parser-side compatibility shim in the client c
 The protocol package owns generation.
 
 - `packages/protocol/src/validation/ws-outbound-envelope.ts` defines the tag-only envelope schema and exposes the session message schemas that get their own validators.
-- `packages/protocol/scripts/generate-validation-aot.mjs` writes the zod-aot discovery entry and the runtime schema metadata, runs the exact-pinned compiler, and applies the small local compiler patches before generation. It also emits the `type` → validator map the boundary dispatches through.
+- `packages/protocol/scripts/generate-validation-aot.mjs` writes the zod-aot discovery entry and the runtime schema metadata and runs the exact-pinned compiler. It also emits the `type` → validator map the boundary dispatches through.
 - `packages/protocol/scripts/watch-validation-aot.mjs` reruns generation while editing protocol sources.
 - `packages/protocol/codegen/generated/ws-outbound.compile.ts`, `packages/protocol/src/generated/validation/ws-outbound.aot.ts`, and `packages/protocol/src/generated/validation/ws-outbound-schema-metadata.ts` are generated and gitignored. The metadata module lets generated code reach schema fallback/default values.
 
@@ -29,13 +29,13 @@ Generation runs from protocol-owned lifecycle hooks: `prebuild`, `pretypecheck`,
 
 ## Regression Tests
 
-zod-aot is exact-pinned and young enough that compiler patches are treated as part of this package. `packages/protocol/tests/validation/ws-outbound.test.ts` keeps small regression tests for the patched cases:
+zod-aot is exact-pinned. `packages/protocol/tests/validation/ws-outbound.test.ts` covers the compiler behaviors this boundary depends on.
 
 - discriminated-union branch output must propagate `.default()` fields
-- every discriminated-union option reachable from the compiled schemas must have a literal tag on an object, because zod-aot 0.20.4 silently omits other options from its switch
-- current sequential item routing must accept `tool_call`-like status branches
+- sequential and nested discriminated unions must accept `tool_call`-like status branches
 - generated runtime imports must keep `.js` extensions for packaged Node ESM
 - the generated WebSocket envelope accepts a minimal valid message and rejects a corrupted one
+- the envelope passes through session bodies and per-message validation strips unknown keys according to each schema
 
 ## Schema Purity
 

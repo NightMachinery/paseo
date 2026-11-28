@@ -14,7 +14,7 @@ interface GeneratedValidator<T> {
 }
 
 // zod-aot emits runtime JavaScript from the envelope and message schemas but not its TypeScript surface.
-// Protocol regression tests cover the patched compiler cases behind this boundary.
+// Protocol regression tests cover the compiler cases behind this boundary.
 const envelopeValidator = WSOutboundEnvelope as GeneratedValidator<WSOutboundMessage>;
 const sessionMessageValidators = SessionOutboundMessageValidators as Record<
   SessionOutboundMessage["type"],
@@ -58,7 +58,7 @@ export function validateWSOutboundMessage(
   if (!result.success) {
     return { success: false, error: new ZodRealError(result.error.issues.map(underMessage)) };
   }
-  // Message validators return a new object when they apply defaults.
+  // Message validators return a new object when they strip keys or apply defaults.
   if (result.data === message) {
     return envelope;
   }

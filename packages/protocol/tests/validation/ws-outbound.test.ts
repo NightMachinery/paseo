@@ -24,7 +24,9 @@ const generatedWSOutboundPath = resolve(
 const require = createRequire(import.meta.url);
 
 async function compileInlineSchema(sourceSchema: string): Promise<GeneratedSchema> {
-  const scratchRoot = resolve(protocolRoot, "../../.tmp");
+  // Inside the package so the generated source resolves zod-aot even when npm nests it under
+  // packages/protocol/node_modules instead of hoisting it to the repo root.
+  const scratchRoot = resolve(protocolRoot, ".tmp");
   await mkdir(scratchRoot, { recursive: true });
   const tempDir = await mkdtemp(join(scratchRoot, "paseo-zod-aot-"));
 
@@ -72,8 +74,14 @@ describe("WS outbound zod-aot validation", () => {
     const visited = new Set<z.ZodType>();
     const unsupported: string[] = [];
 
-    // zod-aot 0.20.4 extracts switch cases only from objects with a literal tag. Walk
-    // the schemas actually passed to the compiler, including through wrappers and aliases.
+    function hasLiteralTag(option: z.ZodType, tag: string): boolean {
+      if (option instanceof z.ZodDiscriminatedUnion) {
+        return option.options.every((branch) => hasLiteralTag(branch, tag));
+      }
+      return option instanceof z.ZodObject && option.shape[tag] instanceof z.ZodLiteral;
+    }
+
+    // Walk the schemas actually passed to the compiler, including through wrappers and aliases.
     function visit(value: unknown, path: string) {
       if (value instanceof z.ZodType) {
         if (visited.has(value)) return;
@@ -81,7 +89,7 @@ describe("WS outbound zod-aot validation", () => {
         if (value instanceof z.ZodDiscriminatedUnion) {
           const tag = value.def.discriminator;
           for (const [index, option] of value.options.entries()) {
-            if (!(option instanceof z.ZodObject && option.shape[tag] instanceof z.ZodLiteral)) {
+            if (!hasLiteralTag(option, tag)) {
               unsupported.push(`${path}.options[${index}] (${tag})`);
             }
           }
@@ -118,7 +126,10 @@ const SourceSchema = z.discriminatedUnion("type", [
     });
   });
 
-  it("routes tool-call-like status unions through the current sequential item union", async () => {
+  it.each([
+    ["sequential", "z.union("],
+    ["discriminated", 'z.discriminatedUnion("type", '],
+  ])("routes tool-call-like status unions through a %s item union", async (_, union) => {
     const schema = await compileInlineSchema(`
 const ToolCallItemSchema = z.discriminatedUnion("status", [
   z.object({ type: z.literal("tool_call"), status: z.literal("running"), callId: z.string() }),
@@ -127,7 +138,7 @@ const ToolCallItemSchema = z.discriminatedUnion("status", [
   z.object({ type: z.literal("tool_call"), status: z.literal("canceled"), callId: z.string() }),
 ]);
 
-const TimelineItemSchema = z.union([
+const TimelineItemSchema = ${union}[
   z.object({ type: z.literal("assistant_message"), text: z.string() }),
   ToolCallItemSchema,
 ]);
@@ -170,6 +181,30 @@ const SourceSchema = z.object({
   it("accepts a minimal valid envelope and rejects a corrupted envelope", () => {
     expect(validateWSOutboundMessage({ type: "pong" }).success).toBe(true);
     expect(validateWSOutboundMessage({ type: "not_a_message" }).success).toBe(false);
+  });
+
+  it("preserves session bodies and applies per-message unknown-key rules", () => {
+    const payload = {
+      requestId: "pin-1",
+      workspaceId: "workspace-1",
+      accepted: true,
+      pinnedAt: null,
+      error: null,
+    };
+    const envelope = {
+      type: "session",
+      message: {
+        type: "workspace.pin.set.response",
+        payload: { ...payload, unused: true },
+      },
+    };
+    const parsed = WSOutboundMessageSchema.parse(envelope);
+    expect(parsed).toEqual({
+      ...envelope,
+      message: { ...envelope.message, payload },
+    });
+    expect(WSOutboundEnvelopeSchema.parse(envelope)).toEqual(envelope);
+    expect(validateWSOutboundMessage(envelope)).toEqual({ success: true, data: parsed });
   });
 
   it("accepts project config responses with and without setup commit status", () => {

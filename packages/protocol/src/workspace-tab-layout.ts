@@ -23,7 +23,7 @@ const PluginSharedTabTargetSchema = z.discriminatedUnion("context", [
   z.strictObject({ ...pluginTarget, context: z.literal("agent"), agentId: id }),
 ]);
 
-// zod-aot 0.20.4 drops a discriminated union used directly as a discriminated-union option.
+// The sequential union avoided a compiler bug in zod-aot 0.20.4.
 const WorkspaceSharedTabTargetSchema = z.union([
   BuiltinSharedTabTargetSchema,
   PluginSharedTabTargetSchema,
