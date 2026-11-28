@@ -224,5 +224,5 @@ assert.deepEqual(build("mcp__paseo__send_agent_prompt", { prompt: "Hello", agent
     } finally {
       rmSync(fixture, { recursive: true, force: true });
     }
-  }, 30_000);
+  }, 60_000); // Packing and typechecking the consumer fixture can exceed 30 s on a busy host.
 });

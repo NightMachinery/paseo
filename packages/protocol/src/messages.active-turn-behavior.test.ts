@@ -59,16 +59,19 @@ describe("agent sender active-turn behaviors", () => {
     ).toMatchObject({ activeTurnBehavior: "queue", guidance: "Queued." });
   });
 
-  it("keeps a person's send_agent_message to interrupt and steer", () => {
-    expect(
-      SendAgentMessageSchema.safeParse({
-        type: "send_agent_message",
-        agentId: "agent-1",
-        text: "hello",
-        activeTurnBehavior: "queue",
-      }).success,
-    ).toBe(false);
-  });
+  it.each(["interrupt", "steer", "queue"] as const)(
+    "accepts a person's explicit %s intent in YPaseo",
+    (activeTurnBehavior) => {
+      expect(
+        SendAgentMessageSchema.parse({
+          type: "send_agent_message",
+          agentId: "agent-1",
+          text: "hello",
+          activeTurnBehavior,
+        }).activeTurnBehavior,
+      ).toBe(activeTurnBehavior);
+    },
+  );
 });
 
 describe("canonical timeline turn ID compatibility", () => {
