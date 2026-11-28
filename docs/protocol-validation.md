@@ -6,7 +6,9 @@ The reason is mobile performance. A captured 353 KB provider snapshot cost about
 
 ## Runtime Path
 
-`packages/protocol/src/validation/ws-outbound.ts` is the shipped boundary. It validates the envelope with a generated validator that checks only each session message's `type` tag, then runs the generated validator for that one message type and returns the validated data. Issue paths from the message validator, including nested union branches, are prefixed with `message`, so callers see the same issues as when one validator covered the whole envelope. It does not normalize, repair, or re-validate the generated result.
+`packages/protocol/src/validation/ws-outbound.ts` is the shipped boundary. It validates the envelope with a generated validator that checks only each session message's `type` tag, then runs the generated validator for that one message type and returns the validated data. Issue paths from the message validator, including nested union branches, are prefixed with `message`, so callers see the same issues as when one validator covered the whole envelope.
+
+YPaseo retries failed workspace reads after removing tab kinds and plugin tab contexts the client does not recognize. The rest of the message must still pass validation. This keeps one unfamiliar tab from breaking the workspace subscription and leaves persisted layouts and daemon-side request validation untouched.
 
 Keep one generated function per message type. zod-aot inlines every nested schema into the function it compiles, so compiling `WSOutboundMessageSchema` as a whole produced one 11 MB function. On V8 (daemon clients, plugin hosts, the CLI, and Electron), the Maglev tier compiled that function once it was hot, allocating about 800 MB and stalling for seconds, and compiled it again after each deoptimization. Hermes has no JIT, so mobile never showed it. `packages/protocol/tests/validation/ws-outbound.test.ts` fails if a generated function grows past 1 MB.
 
@@ -30,6 +32,7 @@ Generation runs from protocol-owned lifecycle hooks: `prebuild`, `pretypecheck`,
 zod-aot is exact-pinned and young enough that compiler patches are treated as part of this package. `packages/protocol/tests/validation/ws-outbound.test.ts` keeps small regression tests for the patched cases:
 
 - discriminated-union branch output must propagate `.default()` fields
+- every discriminated-union option reachable from the compiled schemas must have a literal tag on an object, because zod-aot 0.20.4 silently omits other options from its switch
 - current sequential item routing must accept `tool_call`-like status branches
 - generated runtime imports must keep `.js` extensions for packaged Node ESM
 - the generated WebSocket envelope accepts a minimal valid message and rejects a corrupted one

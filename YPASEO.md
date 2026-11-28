@@ -224,7 +224,10 @@ Each entry: what it is, where it lives, upstream link, when to drop it.
 - **Workspace tabs follow the host across clients.** The daemon shares open
   tabs, their order, and agent visibility through workspace updates. In host
   settings under Workspaces, Sync workspace splits offers Off (the default), Desktops only, or
-  All devices. Older hosts keep the local layout. Proposed upstream in PR
+  All devices. Older hosts keep the local layout. Plugin tabs keep their workspace or agent
+  context on the wire. The client skips unfamiliar tab kinds and plugin contexts in received
+  layouts, warns once per client, and uses the existing unavailable panel when a plugin
+  cannot supply its view. Filtering affects only the received copy. Proposed upstream in PR
   #10420 (Discussion #10419); related: issue #5886, PR #5887.
 - **Queue a message until the running turn ends (`--behavior queue`).** A daemon-owned
   per-agent queue (`packages/server/src/server/agent/agent-message-queue.ts`, persisted in

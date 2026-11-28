@@ -6,7 +6,7 @@ import type {
 } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { CircleAlert } from "lucide-react-native";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import invariant from "tiny-invariant";
@@ -21,7 +21,7 @@ import { normalizeWorkspaceOpaqueId } from "@/utils/workspace-identity";
 import { usePluginHostNavigation } from "../host-navigation";
 import { toPluginTheme } from "../theme";
 import { pluginIconComponent } from "../icons";
-import { useInstalledPlugin } from "../registry";
+import { useInstalledPlugin, usePluginCatalogStatus } from "../registry";
 import { PluginInstallationProvider } from "../installation-provider";
 import { SurfaceErrorBoundary } from "../surface-error-boundary";
 import { resolvePluginWorkspacePanel } from "./resolution";
@@ -30,6 +30,7 @@ import { resolvePluginPlatform } from "../platform";
 const pluginThemeMapping = (theme: Theme) => ({
   theme: toPluginTheme(theme),
 });
+const warnedMissingPanels = new WeakSet<NonNullable<ReturnType<typeof useHostRuntimeClient>>>();
 
 function PluginPanelBody({ theme }: { theme: PluginTheme }) {
   const {
@@ -49,6 +50,7 @@ function PluginPanelBody({ theme }: { theme: PluginTheme }) {
   invariant(target.kind === "plugin", "PluginPanel requires plugin target");
   const plugin = useInstalledPlugin(serverId, target.pluginId);
   const contribution = resolvePluginWorkspacePanel(plugin, target);
+  const catalogStatus = usePluginCatalogStatus(serverId);
   const workspaceExists = useWorkspaceExists(serverId, workspaceId);
   const agentExists = useSessionStore((state) => {
     if (target.context !== "agent") return null;
@@ -66,6 +68,15 @@ function PluginPanelBody({ theme }: { theme: PluginTheme }) {
   const host = useMemo(() => ({ id: serverId, label: hostLabel }), [hostLabel, serverId]);
   const layout = useMemo(() => ({ compact, platform: resolvePluginPlatform() }), [compact]);
   const navigation = usePluginHostNavigation(serverId);
+  const { pluginId, panelId } = target;
+
+  useEffect(() => {
+    if (catalogStatus !== "ready" || contribution || !client || warnedMissingPanels.has(client)) {
+      return;
+    }
+    warnedMissingPanels.add(client);
+    console.warn("[Plugins] Workspace tab panel unavailable", { pluginId, panelId });
+  }, [catalogStatus, client, contribution, panelId, pluginId]);
 
   if (!plugin || !contribution || !workspaceExists) {
     return <PluginPanelUnavailable />;
@@ -148,9 +159,7 @@ function usePluginPanelDescriptor(
   context: { serverId: string },
 ): PanelDescriptor {
   const plugin = useInstalledPlugin(context.serverId, target.pluginId);
-  const panel = plugin?.workspacePanels.find(
-    (contribution) => contribution.id === target.panelId && contribution.context === target.context,
-  );
+  const panel = resolvePluginWorkspacePanel(plugin, target);
   if (!panel) {
     return {
       label: "Plugin unavailable",

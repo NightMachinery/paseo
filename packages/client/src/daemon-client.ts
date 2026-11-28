@@ -1532,6 +1532,7 @@ export class DaemonClient {
   private pluginClientBundlesWrite: PluginClientBundle[] | undefined;
   private pluginClientBundlesWriting = false;
   private logger: Logger;
+  private warnedUnsupportedWorkspaceTabs = false;
   private pendingSendQueue: PendingSend[] = [];
   /**
    * Lowest relay endpoint security this client accepts on its next attempt.
@@ -7749,7 +7750,7 @@ export class DaemonClient {
     const validationTrace = this.beginTraceSection("paseo.ws.validate");
     let parsed: ReturnType<typeof validateWSOutboundMessage>;
     try {
-      parsed = validateWSOutboundMessage(parsedJson);
+      parsed = validateWSOutboundMessage(parsedJson, this.warnUnsupportedWorkspaceTabs);
     } finally {
       this.endTraceSection(validationTrace);
     }
@@ -7812,6 +7813,12 @@ export class DaemonClient {
       this.runtimeMetrics?.recordAgentStream(parsed.data.message.payload);
     }
   }
+
+  private readonly warnUnsupportedWorkspaceTabs = (msgType: SessionOutboundMessage["type"]) => {
+    if (this.warnedUnsupportedWorkspaceTabs) return;
+    this.warnedUnsupportedWorkspaceTabs = true;
+    this.logger.warn({ msgType }, "Skipped unsupported shared workspace tabs");
+  };
 
   private handlePluginFrame(rawBytes: Uint8Array): void {
     const frame = decodePluginFrame(rawBytes);

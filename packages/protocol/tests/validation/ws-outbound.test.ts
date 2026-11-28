@@ -3,10 +3,14 @@ import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createJiti } from "jiti";
-import type { z } from "zod";
+import { z } from "zod";
 import { describe, expect, it } from "vitest";
 import { PluginRpcInvokeResponseSchema, WSOutboundMessageSchema } from "../../src/messages.js";
 import { validateWSOutboundMessage } from "../../src/validation/ws-outbound.js";
+import {
+  WSOutboundEnvelopeSchema,
+  sessionOutboundMessageOptions,
+} from "../../src/validation/ws-outbound-envelope.js";
 
 interface GeneratedSchema {
   safeParse(input: unknown): { success: boolean; data?: unknown };
@@ -64,6 +68,36 @@ async function compileInlineSchema(sourceSchema: string): Promise<GeneratedSchem
 }
 
 describe("WS outbound zod-aot validation", () => {
+  it("gives every generated discriminated-union option a switch case", () => {
+    const visited = new Set<z.ZodType>();
+    const unsupported: string[] = [];
+
+    // zod-aot 0.20.4 extracts switch cases only from objects with a literal tag. Walk
+    // the schemas actually passed to the compiler, including through wrappers and aliases.
+    function visit(value: unknown, path: string) {
+      if (value instanceof z.ZodType) {
+        if (visited.has(value)) return;
+        visited.add(value);
+        if (value instanceof z.ZodDiscriminatedUnion) {
+          const tag = value.def.discriminator;
+          for (const [index, option] of value.options.entries()) {
+            if (!(option instanceof z.ZodObject && option.shape[tag] instanceof z.ZodLiteral)) {
+              unsupported.push(`${path}.options[${index}] (${tag})`);
+            }
+          }
+        }
+        if (value instanceof z.ZodLazy) visit(value.def.getter(), path);
+        visit(value.def, path);
+      } else if (value && typeof value === "object") {
+        for (const [key, child] of Object.entries(value)) visit(child, `${path}.${key}`);
+      }
+    }
+
+    visit(WSOutboundEnvelopeSchema, "envelope");
+    for (const option of sessionOutboundMessageOptions) visit(option, option.shape.type.value);
+    expect(unsupported).toEqual([]);
+  });
+
   it("applies defaults inside discriminated-union branches", async () => {
     const schema = await compileInlineSchema(`
 const SourceSchema = z.discriminatedUnion("type", [
